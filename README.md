@@ -11,7 +11,9 @@ Synapse is a local-first memory-training web app focused on **recalling connecti
 - Edge-level review outcomes (`remembered` / `missed`)
 - Local persistence via `localStorage`
 - JSON import/export with validation and normalization
+- AI draft deck import with preview, validation, and app-side normalization
 - Lightweight editing for graph/card/edge text fields
+- relationType-aware display in All/Learn mode and light edit panel
 
 ## Stack
 
@@ -32,68 +34,116 @@ npm run build
 npm run preview
 ```
 
-## Refactoring notes
+## In-app workflow (provider-agnostic)
 
-The codebase is now split into focused UI components and utility modules for maintainability:
+Synapse is designed for concept-network learning (history, religion, philosophy, psychology, AI/CS, statistics), and now exposes this flow directly in-app:
 
-- `src/components/HomePage.tsx`
-- `src/components/GraphToolbar.tsx`
-- `src/components/LearnModePanel.tsx`
-- `src/components/AllModePanel.tsx`
-- `src/components/EditPanel.tsx`
-- `src/utils/learnState.ts`
+1. Open **Start here / How to use**.
+2. Generate or write a draft deck (NotebookLM, GPTs, Gems, ChatGPT, Gemini, or manual).
+3. Import via **Import AI Draft**.
+4. Review links in **Learn mode** using slot + cue.
+5. Refine graph text over time.
 
-`src/App.tsx` is now primarily orchestration and state wiring.
+You can also load a built-in sample deck from Home with **Load sample deck**.
 
-## Data shape
+## AI-generated deck workflow
 
-```ts
-type ReviewResult = "remembered" | "missed";
+Synapse is provider-agnostic. External tools can generate a **draft**, and Synapse converts it into the app’s official graph format.
 
-interface Card {
-  id: string;
-  title: string;
-  summary: string;
-  detail: string;
-}
+Typical workflow example:
 
-interface Edge {
-  id: string;
-  from: string;
-  to: string;
-  reason: string;
-  slot: string;
-  cue: string;
-}
+1. Put your existing deck, notes, and source material into NotebookLM (or a similar reference-heavy tool).
+2. Ask it to identify missing concepts, missing links, or bridge concepts.
+3. Ask GPTs/Gems/ChatGPT/Gemini to format the result into Synapse draft JSON.
+4. Import the draft into Synapse.
+5. Study and iteratively refine.
 
-interface EdgeProgress {
-  edgeId: string;
-  seenCount: number;
-  rememberedCount: number;
-  missedCount: number;
-  lastResult?: ReviewResult;
-  lastReviewedAt?: string;
-}
+This is a recommendation, not a dependency: Synapse has no direct integration with these tools.
 
-interface GraphData {
-  id: string;
-  title: string;
-  description?: string;
-  cards: Card[];
-  edges: Edge[];
-  progress: EdgeProgress[];
-  createdAt: string;
-  updatedAt: string;
-}
+## Draft deck spec (AI draft import v1)
 
-interface AppData {
-  graphs: GraphData[];
+Draft shape (IDs/progress not required):
+
+```json
+{
+  "graph": {
+    "title": "Theravada Buddhism Basics",
+    "description": "Core concepts and relationships"
+  },
+  "cards": [
+    {
+      "title": "Four Noble Truths",
+      "summary": "Framework of suffering and liberation.",
+      "detail": "Optional longer explanation.",
+      "aliases": ["四聖諦"]
+    }
+  ],
+  "links": [
+    {
+      "from": "Four Noble Truths",
+      "to": "Craving",
+      "relationType": "causes",
+      "reason": "Craving is presented as a cause of suffering.",
+      "cue": "cause"
+    }
+  ],
+  "meta": {
+    "generator": "ai",
+    "topic": "Theravada Buddhism"
+  }
 }
 ```
 
-## Import / export format
+### Field expectations
 
-The app imports and exports one JSON payload:
+- `graph.title`, `graph.description`
+- `cards[].title`, `cards[].summary`, `cards[].detail`, `cards[].aliases`
+- `links[].from`, `links[].to`, `links[].relationType`, `links[].reason`, `links[].cue`
+  - `relationType` is optional, stored, and displayed in app panels
+- `meta` is optional passthrough context
+
+### Importer behavior
+
+During AI draft import, Synapse automatically:
+
+- Generates graph/card/edge IDs
+- Resolves duplicate slug IDs with suffixes
+- Resolves `from`/`to` by card title or aliases
+- Auto-assigns unique outgoing slots
+- Auto-creates progress entries with zero counts
+- Auto-fills `createdAt` / `updatedAt`
+
+## AI draft validation + preview
+
+Before import confirmation, Synapse shows a preview with title, card/link counts, errors, warnings, and import notes.
+
+- **Errors (block import):**
+  - empty card title
+  - duplicate card titles after normalization
+  - unresolved `from`/`to` references
+- **Warnings (import allowed):**
+  - cue too long
+  - isolated cards
+  - missing summary
+  - missing reason
+  - alias overlapping another title/alias (ignored)
+- **Infos:**
+  - slots auto-assigned
+  - progress auto-created
+  - IDs auto-generated
+
+## Guidance for AI-generated content
+
+- 1 card = 1 concept
+- Avoid duplicate concepts
+- Keep concept granularity consistent
+- Use short concrete cues (prefer 1–3 words)
+- Avoid uncertain/low-confidence links
+- Keep drafts human-readable and editable
+
+## Import / export format (full AppData)
+
+The app still imports/exports the normalized full payload:
 
 ```json
 {
@@ -111,7 +161,7 @@ The app imports and exports one JSON payload:
 }
 ```
 
-Validation on import:
+Validation on full import:
 
 - Unique card IDs
 - Unique edge IDs
@@ -128,20 +178,13 @@ Validation on import:
 4. Mark each edge as `remembered` or `missed`
 5. Follow one edge to continue navigation
 
-## Cue guidance for AI-generated data
-
-`cue` should be a short hint (1–3 words):
-
-- Avoid destination titles verbatim
-- Capture reason essence
-- Prefer concrete cues over vague abstractions
-
 ## MVP limitations
 
 - No authentication or backend
 - No cloud sync
 - No advanced spaced repetition
 - No collaborative editing
+- No direct NotebookLM/GPTs/Gems API integration
 - Graph rendering is intentionally lightweight (SVG radial + lists)
 
 ## Deploy to Vercel
@@ -163,7 +206,3 @@ This project is configured for Vercel static deployment with Vite.
 3. Build command: `npm run build`.
 4. Output directory: `dist`.
 5. Install command: `npm install`.
-
-### Important note for this environment
-
-Dependency install is blocked in this execution environment (`npm registry 403`), but Vercel deployment should work in your Vercel project environment where npm registry access is allowed.

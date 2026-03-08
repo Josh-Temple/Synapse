@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react'
 import type { ChangeEvent } from 'react'
+import { buildPreviewFromAiDraft, ensureUniqueGraphId } from './aiDraftImport'
 import { AllModePanel } from './components/AllModePanel'
 import { EditPanel } from './components/EditPanel'
 import { GraphToolbar } from './components/GraphToolbar'
 import { HomePage } from './components/HomePage'
 import { LearnModePanel } from './components/LearnModePanel'
+import { demoData } from './demoData'
 import { validateAndNormalizeAppData } from './graphValidation'
 import { applyReview } from './progress'
 import {
@@ -25,6 +27,8 @@ function App() {
   const [mode, setMode] = useState<Mode>('learn')
   const [importError, setImportError] = useState<string>('')
   const [learnState, setLearnState] = useState<LearnState | null>(() => loadLearnState())
+  const [draftPreview, setDraftPreview] = useState<ReturnType<typeof buildPreviewFromAiDraft> | null>(null)
+  const [isHelpOpen, setIsHelpOpen] = useState(false)
 
   const selectedGraph = useMemo(
     () => appData.graphs.find((graph) => graph.id === selectedGraphId) ?? null,
@@ -79,7 +83,43 @@ function App() {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Import failed'
       setImportError(message)
+    } finally {
+      event.target.value = ''
     }
+  }
+
+  const handleAiDraftFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    try {
+      const text = await file.text()
+      const parsed = JSON.parse(text)
+      const preview = buildPreviewFromAiDraft(parsed)
+      setDraftPreview(preview)
+      setImportError('')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to parse AI draft.'
+      setDraftPreview(null)
+      setImportError(`AI draft parse failed: ${message}`)
+    } finally {
+      event.target.value = ''
+    }
+  }
+
+  const confirmAiImport = () => {
+    if (!draftPreview?.normalizedGraph) return
+
+    const existingIds = new Set(appData.graphs.map((graph) => graph.id))
+    const graphId = ensureUniqueGraphId(draftPreview.normalizedGraph.id, existingIds)
+    const graphToImport = { ...draftPreview.normalizedGraph, id: graphId }
+    const nextData = { graphs: [...appData.graphs, graphToImport] }
+
+    setAppData(nextData)
+    saveAppData(nextData)
+    setGraphAndPersist(graphId)
+    persistLearn(buildInitialLearnState(graphToImport))
+    setDraftPreview(null)
   }
 
   const handleExport = () => {
@@ -114,15 +154,46 @@ function App() {
     persistLearn(buildInitialLearnState(nextGraph))
   }
 
+  const loadSampleDeck = () => {
+    const sample = demoData.graphs[0]
+    const existingIds = new Set(appData.graphs.map((graph) => graph.id))
+    const graphId = ensureUniqueGraphId(sample.id, existingIds)
+    const now = new Date().toISOString()
+
+    const graphToImport: GraphData = {
+      ...sample,
+      id: graphId,
+      title: `${sample.title} (Sample)`,
+      cards: sample.cards.map((card) => ({ ...card })),
+      edges: sample.edges.map((edge) => ({ ...edge })),
+      progress: sample.progress.map((item) => ({ ...item })),
+      createdAt: now,
+      updatedAt: now,
+    }
+
+    const nextData = { graphs: [...appData.graphs, graphToImport] }
+    setAppData(nextData)
+    saveAppData(nextData)
+    setGraphAndPersist(graphId)
+    persistLearn(buildInitialLearnState(graphToImport))
+  }
+
   if (!selectedGraph) {
     return (
       <HomePage
+        draftPreview={draftPreview}
         graphs={appData.graphs}
         importError={importError}
+        isHelpOpen={isHelpOpen}
         onOpenGraph={setGraphAndPersist}
         onCreateGraph={createNewGraph}
         onImport={handleImport}
+        onImportAiDraft={handleAiDraftFile}
+        onConfirmAiDraft={confirmAiImport}
+        onCancelAiDraft={() => setDraftPreview(null)}
         onExport={handleExport}
+        onLoadSampleDeck={loadSampleDeck}
+        onToggleHelp={() => setIsHelpOpen((current) => !current)}
       />
     )
   }
@@ -173,10 +244,14 @@ function App() {
     }))
   }
 
-  const updateEdge = (edgeId: string, field: 'cue' | 'reason' | 'slot', value: string) => {
+  const updateEdge = (edgeId: string, field: 'cue' | 'reason' | 'slot' | 'relationType', value: string) => {
     updateGraph(graph.id, (target) => ({
       ...target,
-      edges: target.edges.map((edge) => (edge.id === edgeId ? { ...edge, [field]: value } : edge)),
+      edges: target.edges.map((edge) =>
+        edge.id === edgeId
+          ? { ...edge, [field]: field === 'relationType' && value.trim() === '' ? undefined : value }
+          : edge,
+      ),
     }))
   }
 
