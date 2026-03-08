@@ -112,3 +112,9 @@ textarea {
   font-weight: 600;
   color: #4338ca;
 }
+
+.relation-type {
+  display: inline-block;
+  font-size: 0.8rem;
+  color: #0f766e;
+}

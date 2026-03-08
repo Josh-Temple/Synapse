@@ -74,6 +74,7 @@ export const AllModePanel = ({ graph }: AllModePanelProps) => {
               <div>
                 <strong>{edge.slot}</strong> {edge.from} → {destination?.title ?? edge.to}
               </div>
+              {edge.relationType && <div className="relation-type">relation: {edge.relationType}</div>}
               <div>{edge.reason}</div>
               <div>
                 seen: {progress?.seenCount ?? 0} | remembered: {progress?.rememberedCount ?? 0} | missed:{' '}

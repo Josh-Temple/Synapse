@@ -65,6 +65,7 @@ export const LearnModePanel = ({
                 <li key={edge.id} className="edge-item">
                   <strong>{edge.slot}</strong>
                   <span className="cue">cue: {edge.cue}</span>
+                  {edge.relationType && <span className="relation-type">relation: {edge.relationType}</span>}
                   <span>to: {isDestRevealed ? destination?.title ?? '(missing)' : '•••• hidden ••••'}</span>
                   <span>reason: {isReasonRevealed ? edge.reason : '•••• hidden ••••'}</span>
                   <div className="actions small">

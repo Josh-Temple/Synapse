@@ -14,6 +14,7 @@ export interface Edge {
   reason: string
   slot: string
   cue: string
+  relationType?: string
 }
 
 export interface EdgeProgress {

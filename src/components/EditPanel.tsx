@@ -4,7 +4,7 @@ interface EditPanelProps {
   graph: GraphData
   onUpdateGraphField: (field: 'title' | 'description', value: string) => void
   onUpdateCard: (cardId: string, field: 'title' | 'summary' | 'detail', value: string) => void
-  onUpdateEdge: (edgeId: string, field: 'cue' | 'reason' | 'slot', value: string) => void
+  onUpdateEdge: (edgeId: string, field: 'cue' | 'reason' | 'slot' | 'relationType', value: string) => void
 }
 
 export const EditPanel = ({
@@ -71,6 +71,13 @@ export const EditPanel = ({
           <textarea
             value={edge.reason}
             onChange={(event) => onUpdateEdge(edge.id, 'reason', event.target.value)}
+          />
+        </label>
+        <label>
+          Relation type
+          <input
+            value={edge.relationType ?? ''}
+            onChange={(event) => onUpdateEdge(edge.id, 'relationType', event.target.value)}
           />
         </label>
       </details>
