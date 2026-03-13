@@ -34,40 +34,49 @@ export const HomePage = ({
   onToggleHelp,
 }: HomePageProps) => (
   <main className="container">
-    <header>
+    <header className="hero card">
+      <p className="eyebrow">Concept-network learning</p>
       <h1>Synapse</h1>
-      <p>Recall concept connections with slot + cue based navigation.</p>
+      <p className="hero-text">
+        Learn how ideas connect. Use the graph as support, then train recall in Learn mode with slot + cue prompts.
+      </p>
       <div className="actions">
-        <button onClick={onToggleHelp}>{isHelpOpen ? 'Close guide' : 'Start here / How to use'}</button>
+        <button onClick={onLoadSampleDeck}>1) Start with sample</button>
+        <label className="button-like">
+          2) Import AI Draft
+          <input type="file" accept="application/json" onChange={onImportAiDraft} hidden />
+        </label>
+        <button onClick={onToggleHelp}>{isHelpOpen ? 'Close quick guide' : '3) Open quick guide'}</button>
       </div>
+      <p className="muted">You can also open/edit existing graphs below.</p>
     </header>
+
+    <section className="card fit-grid">
+      <div>
+        <h2>Good fit</h2>
+        <p>History, religion, philosophy, psychology, AI/CS, statistics.</p>
+      </div>
+      <div>
+        <h2>Less ideal</h2>
+        <p>Pure vocabulary drilling, long-form memorization, freeform brainstorming.</p>
+      </div>
+    </section>
 
     {isHelpOpen && (
       <section className="card">
-        <h2>How to use Synapse</h2>
-        <p>Synapse is for recalling connections between concepts, not just isolated facts.</p>
+        <h2>Start here / How to use</h2>
         <ol>
-          <li>Generate a draft deck externally (NotebookLM, GPTs, Gems, ChatGPT, Gemini, or manually).</li>
-          <li>Import AI Draft from this home screen.</li>
-          <li>Review in Learn mode using slot + cue hints.</li>
-          <li>Refine cards and links over time.</li>
+          <li>Start with the sample deck or import your AI draft.</li>
+          <li>Check connections in All mode (overview + details).</li>
+          <li>Train recall in Learn mode using slot + cue.</li>
+          <li>Refine card summaries and edge reasons as your understanding improves.</li>
         </ol>
-        <p><strong>Good topics:</strong> history causality, Buddhism/Christianity concepts, philosophy, psychology, statistics, AI/CS.</p>
-        <details>
-          <summary>Ideas for topics</summary>
-          <ul>
-            <li>World history events and causes</li>
-            <li>Four Noble Truths and Eightfold Path connections</li>
-            <li>Christian concepts and historical branches</li>
-            <li>Cognitive biases and interventions</li>
-            <li>Statistics and machine-learning concepts</li>
-          </ul>
-        </details>
       </section>
     )}
 
     <section className="card">
-      <h2>Graphs</h2>
+      <h2>Open or edit existing graph</h2>
+      {graphs.length === 0 ? <p>No graph yet. Start with sample or create one.</p> : null}
       <ul>
         {graphs.map((graph) => (
           <li key={graph.id} className="graph-row">
@@ -78,11 +87,6 @@ export const HomePage = ({
       </ul>
       <div className="actions">
         <button onClick={onCreateGraph}>New graph</button>
-        <button onClick={onLoadSampleDeck}>Load sample deck</button>
-        <label className="button-like">
-          Import AI Draft
-          <input type="file" accept="application/json" onChange={onImportAiDraft} hidden />
-        </label>
         <label className="button-like">
           Import full JSON
           <input type="file" accept="application/json" onChange={onImport} hidden />

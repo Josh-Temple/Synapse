@@ -26,34 +26,34 @@ export const LearnModePanel = ({
   const currentCard = cards.find((card) => card.id === learnState.currentCardId) ?? null
 
   return (
-    <section className="grid">
-      <article className="card">
-        <h2>Current card</h2>
+    <section className="learn-layout">
+      <article className="card learn-focus">
+        <p className="eyebrow">Learn mode (core loop)</p>
+        <h2>{currentCard?.title ?? 'No current card'}</h2>
         {currentCard ? (
           <>
-            <h3>{currentCard.title}</h3>
+            <p><strong>Summary:</strong> {currentCard.summary}</p>
             <details>
-              <summary>Show summary</summary>
-              <p>{currentCard.summary}</p>
-            </details>
-            <details>
-              <summary>Show detail</summary>
+              <summary>Open detail</summary>
               <p>{currentCard.detail}</p>
             </details>
           </>
         ) : (
-          <p>No current card</p>
+          <p>Select a card to start.</p>
         )}
       </article>
 
       <article className="card">
-        <h2>Outgoing edges (slot + cue)</h2>
-        <div className="actions">
-          <button onClick={onRevealAllDestinations}>Reveal all destinations</button>
-          <button onClick={onRevealAllReasons}>Reveal all reasons</button>
+        <div className="learn-header">
+          <h3>Recall connections (slot + cue)</h3>
+          <div className="actions">
+            <button onClick={onRevealAllDestinations}>Reveal all destinations</button>
+            <button onClick={onRevealAllReasons}>Reveal all reasons</button>
+          </div>
         </div>
+
         {outgoingEdges.length === 0 ? (
-          <p>No outgoing edges from this card.</p>
+          <p>No outgoing links from this card.</p>
         ) : (
           <ul className="edge-list">
             {outgoingEdges.map((edge) => {
@@ -62,12 +62,15 @@ export const LearnModePanel = ({
               const isReasonRevealed = learnState.revealedReasonEdgeIds.includes(edge.id)
 
               return (
-                <li key={edge.id} className="edge-item">
-                  <strong>{edge.slot}</strong>
-                  <span className="cue">cue: {edge.cue}</span>
-                  {edge.relationType && <span className="relation-type">relation: {edge.relationType}</span>}
-                  <span>to: {isDestRevealed ? destination?.title ?? '(missing)' : '•••• hidden ••••'}</span>
-                  <span>reason: {isReasonRevealed ? edge.reason : '•••• hidden ••••'}</span>
+                <li key={edge.id} className="edge-item review-item">
+                  <div className="review-topline">
+                    <strong>{edge.slot}</strong>
+                    <span className="cue">cue: {edge.cue}</span>
+                    {edge.relationType ? <span className="relation-type">relation: {edge.relationType}</span> : null}
+                  </div>
+                  <div>destination: {isDestRevealed ? destination?.title ?? '(missing)' : '•••• hidden ••••'}</div>
+                  <div>reason: {isReasonRevealed ? edge.reason : '•••• hidden ••••'}</div>
+
                   <div className="actions small">
                     <button onClick={() => onToggleDestinationReveal(edge.id)}>
                       {isDestRevealed ? 'Hide destination' : 'Reveal destination'}
@@ -75,9 +78,12 @@ export const LearnModePanel = ({
                     <button onClick={() => onToggleReasonReveal(edge.id)}>
                       {isReasonRevealed ? 'Hide reason' : 'Reveal reason'}
                     </button>
-                    <button onClick={() => onMarkResult(edge.id, 'remembered')}>Remembered</button>
-                    <button onClick={() => onMarkResult(edge.id, 'missed')}>Missed</button>
-                    <button onClick={() => onFollowEdge(edge)}>Follow</button>
+                  </div>
+
+                  <div className="actions small review-actions">
+                    <button className="success" onClick={() => onMarkResult(edge.id, 'remembered')}>Remembered</button>
+                    <button className="danger" onClick={() => onMarkResult(edge.id, 'missed')}>Missed</button>
+                    <button onClick={() => onFollowEdge(edge)}>Follow next card</button>
                   </div>
                 </li>
               )
