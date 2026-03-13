@@ -71,3 +71,11 @@ If deck size/performance pressure grows:
 - No advanced spaced repetition.
 - No graph engine migration.
 - No change to AI draft schema shape.
+
+## Session update (current)
+
+- Re-checked `README.md` and `HANDOFF.md` for consistency.
+- Confirmed that **Card is implemented** in both domain model and UI:
+  - Data model: `Card` interface and `GraphData.cards` are defined.
+  - UI usage: cards are rendered/edited in All, Learn, and Edit panels.
+- Verified project health with a successful production build.
