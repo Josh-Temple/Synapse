@@ -15,7 +15,7 @@ body {
 }
 
 .wide {
-  max-width: 1200px;
+  max-width: 1240px;
 }
 
 .card {
@@ -24,6 +24,34 @@ body {
   padding: 1rem;
   margin-bottom: 1rem;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.hero {
+  border: 1px solid #dbeafe;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.75rem;
+  color: #4f46e5;
+  margin: 0;
+}
+
+.hero-text {
+  font-size: 1.05rem;
+  max-width: 760px;
+}
+
+.muted {
+  color: #4b5563;
+  margin-top: 0.3rem;
+}
+
+.fit-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 }
 
 .actions {
@@ -47,6 +75,14 @@ button,
   padding: 0.45rem 0.75rem;
   text-decoration: none;
   display: inline-block;
+}
+
+button.success {
+  background: #047857;
+}
+
+button.danger {
+  background: #b91c1c;
 }
 
 input,
@@ -88,6 +124,10 @@ textarea {
   gap: 0.35rem;
 }
 
+.review-item {
+  background: #fcfcff;
+}
+
 .error {
   color: #b91c1c;
 }
@@ -101,11 +141,60 @@ textarea {
 
 .graph-svg {
   width: 100%;
-  max-height: 480px;
   background: #f9fafb;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.graph-svg.compact {
+  max-height: 420px;
+}
+
+.clickable {
+  cursor: pointer;
+}
+
+.all-mode-layout {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(340px, 1fr) minmax(360px, 1.1fr);
+}
+
+.details-panel {
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 0.85rem;
+}
+
+.learn-layout {
+  display: grid;
+  gap: 1rem;
+}
+
+.learn-focus {
+  border: 1px solid #c7d2fe;
+}
+
+.learn-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.review-topline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.review-actions {
+  border-top: 1px dashed #d1d5db;
+  padding-top: 0.45rem;
 }
 
 .cue {
@@ -117,4 +206,10 @@ textarea {
   display: inline-block;
   font-size: 0.8rem;
   color: #0f766e;
+}
+
+@media (max-width: 900px) {
+  .all-mode-layout {
+    grid-template-columns: 1fr;
+  }
 }

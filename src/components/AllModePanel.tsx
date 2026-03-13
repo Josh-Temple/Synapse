@@ -1,16 +1,19 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { getEdgeStrength } from '../progress'
-import type { GraphData } from '../types'
+import type { Card, GraphData } from '../types'
 
 interface AllModePanelProps {
   graph: GraphData
 }
 
+const findCard = (cards: Card[], cardId: string): Card | null => cards.find((card) => card.id === cardId) ?? null
+
 export const AllModePanel = ({ graph }: AllModePanelProps) => {
+  const [selectedCardId, setSelectedCardId] = useState<string>(graph.cards[0]?.id ?? '')
   const points = useMemo(() => {
-    const radius = 180
-    const cx = 220
-    const cy = 220
+    const radius = 150
+    const cx = 190
+    const cy = 190
 
     return graph.cards.map((card, idx) => {
       const angle = (Math.PI * 2 * idx) / Math.max(graph.cards.length, 1)
@@ -23,67 +26,110 @@ export const AllModePanel = ({ graph }: AllModePanelProps) => {
   }, [graph.cards])
 
   const pointByCardId = new Map(points.map((point) => [point.card.id, point]))
+  const selected = findCard(graph.cards, selectedCardId) ?? graph.cards[0] ?? null
+
+  useEffect(() => {
+    setSelectedCardId(graph.cards[0]?.id ?? '')
+  }, [graph.id, graph.cards])
+
+  const outgoingEdges = selected ? graph.edges.filter((edge) => edge.from === selected.id) : []
+  const incomingEdges = selected ? graph.edges.filter((edge) => edge.to === selected.id) : []
 
   return (
     <section className="card">
-      <h2>All mode</h2>
-      <svg viewBox="0 0 460 460" className="graph-svg">
-        {graph.edges.map((edge) => {
-          const from = pointByCardId.get(edge.from)
-          const to = pointByCardId.get(edge.to)
-          const progress = graph.progress.find((item) => item.edgeId === edge.id)
+      <h2>All mode (overview + selected concept details)</h2>
+      <div className="all-mode-layout">
+        <div>
+          <svg viewBox="0 0 400 400" className="graph-svg compact">
+            {graph.edges.map((edge) => {
+              const from = pointByCardId.get(edge.from)
+              const to = pointByCardId.get(edge.to)
+              const progress = graph.progress.find((item) => item.edgeId === edge.id)
 
-          if (!from || !to) return null
+              if (!from || !to) return null
 
-          const strength = getEdgeStrength(progress)
+              const strength = getEdgeStrength(progress)
+              const isConnectedToSelected = selected ? edge.from === selected.id || edge.to === selected.id : false
 
-          return (
-            <g key={edge.id}>
-              <line
-                x1={from.x}
-                y1={from.y}
-                x2={to.x}
-                y2={to.y}
-                stroke="#5a67d8"
-                strokeWidth={1 + strength * 4}
-                opacity={0.8}
-              />
-              <text x={(from.x + to.x) / 2} y={(from.y + to.y) / 2} fontSize="9">
-                {edge.slot}: {edge.reason}
-              </text>
-            </g>
-          )
-        })}
-        {points.map((point) => (
-          <g key={point.card.id}>
-            <circle cx={point.x} cy={point.y} r="22" fill="#1a202c" />
-            <text x={point.x} y={point.y + 4} textAnchor="middle" fill="white" fontSize="9">
-              {point.card.title.slice(0, 12)}
-            </text>
-          </g>
-        ))}
-      </svg>
+              return (
+                <line
+                  key={edge.id}
+                  x1={from.x}
+                  y1={from.y}
+                  x2={to.x}
+                  y2={to.y}
+                  stroke={isConnectedToSelected ? '#4338ca' : '#9ca3af'}
+                  strokeWidth={1 + strength * 3}
+                  opacity={isConnectedToSelected ? 0.95 : 0.45}
+                />
+              )
+            })}
+            {points.map((point) => {
+              const isSelected = selected?.id === point.card.id
 
-      <ul className="edge-list">
-        {graph.edges.map((edge) => {
-          const destination = graph.cards.find((card) => card.id === edge.to)
-          const progress = graph.progress.find((item) => item.edgeId === edge.id)
+              return (
+                <g key={point.card.id} className="clickable" onClick={() => setSelectedCardId(point.card.id)}>
+                  <circle cx={point.x} cy={point.y} r={isSelected ? '22' : '16'} fill={isSelected ? '#111827' : '#374151'} />
+                  <text x={point.x} y={point.y + 3} textAnchor="middle" fill="white" fontSize="8">
+                    {point.card.title.slice(0, 10)}
+                  </text>
+                </g>
+              )
+            })}
+          </svg>
+          <p className="muted">Tip: click a node to inspect one concept and its local links.</p>
+        </div>
 
-          return (
-            <li key={edge.id} className="edge-item">
-              <div>
-                <strong>{edge.slot}</strong> {edge.from} → {destination?.title ?? edge.to}
-              </div>
-              {edge.relationType && <div className="relation-type">relation: {edge.relationType}</div>}
-              <div>{edge.reason}</div>
-              <div>
-                seen: {progress?.seenCount ?? 0} | remembered: {progress?.rememberedCount ?? 0} | missed:{' '}
-                {progress?.missedCount ?? 0}
-              </div>
-            </li>
-          )
-        })}
-      </ul>
+        <article className="details-panel">
+          {!selected ? (
+            <p>No card selected.</p>
+          ) : (
+            <>
+              <h3>{selected.title}</h3>
+              <p><strong>Summary:</strong> {selected.summary || '—'}</p>
+              <p><strong>Detail:</strong> {selected.detail || '—'}</p>
+
+              <h4>Outgoing links</h4>
+              {outgoingEdges.length === 0 ? (
+                <p>None</p>
+              ) : (
+                <ul className="edge-list">
+                  {outgoingEdges.map((edge) => {
+                    const destination = findCard(graph.cards, edge.to)
+                    return (
+                      <li key={edge.id} className="edge-item">
+                        <div><strong>{edge.slot}</strong> → {destination?.title ?? edge.to}</div>
+                        <div>relationType: {edge.relationType ?? '—'}</div>
+                        <div>cue: {edge.cue}</div>
+                        <div>reason: {edge.reason}</div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+
+              <h4>Incoming links</h4>
+              {incomingEdges.length === 0 ? (
+                <p>None</p>
+              ) : (
+                <ul className="edge-list">
+                  {incomingEdges.map((edge) => {
+                    const source = findCard(graph.cards, edge.from)
+                    return (
+                      <li key={edge.id} className="edge-item">
+                        <div><strong>{source?.title ?? edge.from}</strong> → {selected.title}</div>
+                        <div>relationType: {edge.relationType ?? '—'}</div>
+                        <div>cue: {edge.cue}</div>
+                        <div>reason: {edge.reason}</div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </>
+          )}
+        </article>
+      </div>
     </section>
   )
 }
