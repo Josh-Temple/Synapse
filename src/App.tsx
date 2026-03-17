@@ -8,12 +8,16 @@ import { HomePage } from './components/HomePage'
 import { LearnModePanel } from './components/LearnModePanel'
 import { demoData } from './demoData'
 import { validateAndNormalizeAppData } from './graphValidation'
+import { createCardInGraph, createEdgeInGraph, deleteCardInGraph, deleteEdgeInGraph, rewireEdgeInGraph } from './graphMutations'
+import { buildFullImportPreview, mergeAppData } from './importFlow'
 import { applyReview } from './progress'
 import {
   loadAppData,
+  loadImportBackup,
   loadLastGraphId,
   loadLearnState,
   saveAppData,
+  saveImportBackup,
   saveLastGraphId,
   saveLearnState,
 } from './storage'
@@ -28,6 +32,8 @@ function App() {
   const [importError, setImportError] = useState<string>('')
   const [learnState, setLearnState] = useState<LearnState | null>(() => loadLearnState())
   const [draftPreview, setDraftPreview] = useState<ReturnType<typeof buildPreviewFromAiDraft> | null>(null)
+  const [fullImportPreview, setFullImportPreview] = useState<ReturnType<typeof buildFullImportPreview> | null>(null)
+  const [fullImportMode, setFullImportMode] = useState<'merge' | 'replace'>('merge')
   const [isHelpOpen, setIsHelpOpen] = useState(false)
 
   const selectedGraph = useMemo(
@@ -70,22 +76,51 @@ function App() {
     try {
       const text = await file.text()
       const parsed = validateAndNormalizeAppData(JSON.parse(text))
-
-      setAppData(parsed)
-      saveAppData(parsed)
-
-      const firstGraph = parsed.graphs[0]
-      if (firstGraph) {
-        setGraphAndPersist(firstGraph.id)
-      }
-
+      setFullImportPreview(buildFullImportPreview(parsed))
+      setFullImportMode('merge')
       setImportError('')
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Import failed'
       setImportError(message)
+      setFullImportPreview(null)
     } finally {
       event.target.value = ''
     }
+  }
+
+  const confirmFullImport = () => {
+    if (!fullImportPreview) return
+
+    const nextData = fullImportMode === 'merge' ? mergeAppData(appData, fullImportPreview.data) : fullImportPreview.data
+    if (fullImportMode === 'replace') {
+      saveImportBackup(appData)
+    }
+
+    setAppData(nextData)
+    saveAppData(nextData)
+
+    const firstGraph = nextData.graphs[0]
+    if (firstGraph) {
+      setGraphAndPersist(firstGraph.id)
+    }
+
+    setFullImportPreview(null)
+  }
+
+  const restoreLastBackup = () => {
+    const backup = loadImportBackup()
+    if (!backup) {
+      setImportError('No backup snapshot found. Run a Replace import first.')
+      return
+    }
+
+    setAppData(backup)
+    saveAppData(backup)
+    const firstGraph = backup.graphs[0]
+    if (firstGraph) {
+      setGraphAndPersist(firstGraph.id)
+    }
+    setImportError('')
   }
 
   const handleAiDraftFile = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -182,6 +217,8 @@ function App() {
     return (
       <HomePage
         draftPreview={draftPreview}
+        fullImportMode={fullImportMode}
+        fullImportPreview={fullImportPreview}
         graphs={appData.graphs}
         importError={importError}
         isHelpOpen={isHelpOpen}
@@ -191,6 +228,10 @@ function App() {
         onImportAiDraft={handleAiDraftFile}
         onConfirmAiDraft={confirmAiImport}
         onCancelAiDraft={() => setDraftPreview(null)}
+        onConfirmFullImport={confirmFullImport}
+        onCancelFullImport={() => setFullImportPreview(null)}
+        onChangeFullImportMode={setFullImportMode}
+        onRestoreLastBackup={restoreLastBackup}
         onExport={handleExport}
         onLoadSampleDeck={loadSampleDeck}
         onToggleHelp={() => setIsHelpOpen((current) => !current)}
@@ -306,6 +347,32 @@ function App() {
         onUpdateGraphField={updateGraphField}
         onUpdateCard={updateCard}
         onUpdateEdge={updateEdge}
+        onCreateCard={(input) => {
+          const result = createCardInGraph(graph, input)
+          if (result.error) return result.error
+          updateGraph(graph.id, () => result.graph)
+          return null
+        }}
+        onDeleteCard={(cardId) => {
+          const result = deleteCardInGraph(graph, cardId)
+          updateGraph(graph.id, () => result.graph)
+        }}
+        onCreateEdge={(input) => {
+          const result = createEdgeInGraph(graph, input)
+          if (result.error) return result.error
+          updateGraph(graph.id, () => result.graph)
+          return null
+        }}
+        onDeleteEdge={(edgeId) => {
+          const result = deleteEdgeInGraph(graph, edgeId)
+          updateGraph(graph.id, () => result.graph)
+        }}
+        onRewireEdge={(edgeId, from, to) => {
+          const result = rewireEdgeInGraph(graph, edgeId, from, to)
+          if (result.error) return result.error
+          updateGraph(graph.id, () => result.graph)
+          return null
+        }}
       />
     </main>
   )

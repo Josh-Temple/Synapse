@@ -23,10 +23,13 @@ The graph view supports understanding, but the core value is the learning loop i
   - **Learn mode**: primary study loop using slot + cue recall
 - Edge-level review outcomes (`remembered` / `missed`)
 - Local persistence via `localStorage` (with a storage abstraction prepared for future IndexedDB migration)
-- JSON import/export with validation and normalization
+- JSON import/export with validation, preview, and safer replace/merge flows
+- Automatic backup snapshot before Replace import + restore-last-backup action
 - AI draft deck import with preview, validation, and app-side normalization
-- Lightweight editing for graph/card/edge text fields
+- In-app graph editing primitives: create/delete cards, create/delete edges, safe edge rewiring with card-title dropdowns
 - relationType-aware display in All/Learn mode and edit panel
+- All mode readability helpers: 1-hop/2-hop focus and concept search
+- Graph-level progress summary (reviewed/remembered/missed/untouched)
 
 ## Stack
 
@@ -100,6 +103,15 @@ Typical workflow:
   }
 }
 ```
+
+## Safer full import flow
+
+1. Select **Import full JSON**.
+2. Review preview (graph/card/edge counts + graph titles).
+3. Choose mode:
+   - **Merge** (default, safer): imported graphs are appended; ID conflicts are auto-renamed.
+   - **Replace**: replace all current data after automatic backup snapshot.
+4. Use **Restore last backup** to recover from an accidental replace.
 
 ## Import / export format (full AppData)
 
