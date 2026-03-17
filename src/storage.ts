@@ -5,6 +5,7 @@ import type { AppData, LearnState } from './types'
 const APP_KEY = 'synapse.appData'
 const LEARN_KEY = 'synapse.learnState'
 const LAST_GRAPH_KEY = 'synapse.lastGraphId'
+const IMPORT_BACKUP_KEY = 'synapse.importBackup'
 
 interface StorageEngine {
   getItem: (key: string) => string | null
@@ -53,3 +54,17 @@ export const saveLearnState = (state: LearnState): void => {
 export const loadLastGraphId = (): string | null => engine.getItem(LAST_GRAPH_KEY)
 
 export const saveLastGraphId = (graphId: string): void => engine.setItem(LAST_GRAPH_KEY, graphId)
+
+export const saveImportBackup = (data: AppData): void => {
+  engine.setItem(IMPORT_BACKUP_KEY, JSON.stringify(data))
+}
+
+export const loadImportBackup = (): AppData | null => {
+  const raw = engine.getItem(IMPORT_BACKUP_KEY)
+  if (!raw) return null
+  try {
+    return validateAndNormalizeAppData(JSON.parse(raw))
+  } catch {
+    return null
+  }
+}

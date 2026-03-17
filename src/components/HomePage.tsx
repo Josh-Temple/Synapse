@@ -1,11 +1,14 @@
 import type { ChangeEvent } from 'react'
 import type { DraftImportPreview } from '../aiDraftImport'
+import type { FullImportMode, FullImportPreview } from '../importFlow'
 import type { GraphData } from '../types'
 
 interface HomePageProps {
   graphs: GraphData[]
   importError: string
   draftPreview: DraftImportPreview | null
+  fullImportPreview: FullImportPreview | null
+  fullImportMode: FullImportMode
   isHelpOpen: boolean
   onOpenGraph: (graphId: string) => void
   onCreateGraph: () => void
@@ -13,6 +16,10 @@ interface HomePageProps {
   onImportAiDraft: (event: ChangeEvent<HTMLInputElement>) => Promise<void>
   onConfirmAiDraft: () => void
   onCancelAiDraft: () => void
+  onConfirmFullImport: () => void
+  onCancelFullImport: () => void
+  onChangeFullImportMode: (mode: FullImportMode) => void
+  onRestoreLastBackup: () => void
   onExport: () => void
   onLoadSampleDeck: () => void
   onToggleHelp: () => void
@@ -22,6 +29,8 @@ export const HomePage = ({
   graphs,
   importError,
   draftPreview,
+  fullImportPreview,
+  fullImportMode,
   isHelpOpen,
   onOpenGraph,
   onCreateGraph,
@@ -29,6 +38,10 @@ export const HomePage = ({
   onImportAiDraft,
   onConfirmAiDraft,
   onCancelAiDraft,
+  onConfirmFullImport,
+  onCancelFullImport,
+  onChangeFullImportMode,
+  onRestoreLastBackup,
   onExport,
   onLoadSampleDeck,
   onToggleHelp,
@@ -37,9 +50,7 @@ export const HomePage = ({
     <header className="hero card">
       <p className="eyebrow">Concept-network learning</p>
       <h1>Synapse</h1>
-      <p className="hero-text">
-        Learn how ideas connect. Use the graph as support, then train recall in Learn mode with slot + cue prompts.
-      </p>
+      <p className="hero-text">Learn how ideas connect. Use the graph as support, then train recall in Learn mode with slot + cue prompts.</p>
       <div className="actions">
         <button onClick={onLoadSampleDeck}>1) Start with sample</button>
         <label className="button-like">
@@ -91,18 +102,41 @@ export const HomePage = ({
           Import full JSON
           <input type="file" accept="application/json" onChange={onImport} hidden />
         </label>
+        <button onClick={onRestoreLastBackup}>Restore last backup</button>
         <button onClick={onExport}>Export JSON</button>
       </div>
       {importError && <p className="error">{importError}</p>}
     </section>
 
+    {fullImportPreview && (
+      <section className="card">
+        <h2>Full import preview</h2>
+        <p><strong>Graphs:</strong> {fullImportPreview.graphCount}</p>
+        <p><strong>Cards:</strong> {fullImportPreview.cardCount} | <strong>Edges:</strong> {fullImportPreview.edgeCount}</p>
+        <p><strong>Graph titles:</strong> {fullImportPreview.graphTitles.join(', ') || '—'}</p>
+
+        <label>
+          <input type="radio" checked={fullImportMode === 'merge'} onChange={() => onChangeFullImportMode('merge')} />
+          Merge into existing data (safe default)
+        </label>
+        <label>
+          <input type="radio" checked={fullImportMode === 'replace'} onChange={() => onChangeFullImportMode('replace')} />
+          Replace all existing data
+        </label>
+        {fullImportMode === 'replace' && <p className="error">Warning: Replace overwrites current data. A backup snapshot is created automatically.</p>}
+
+        <div className="actions">
+          <button onClick={onCancelFullImport}>Cancel</button>
+          <button onClick={onConfirmFullImport}>Confirm import</button>
+        </div>
+      </section>
+    )}
+
     {draftPreview && (
       <section className="card">
         <h2>AI draft import preview</h2>
         <p><strong>Graph:</strong> {draftPreview.report.graphTitle}</p>
-        <p>
-          <strong>Cards:</strong> {draftPreview.report.cardCount} | <strong>Links:</strong> {draftPreview.report.linkCount}
-        </p>
+        <p><strong>Cards:</strong> {draftPreview.report.cardCount} | <strong>Links:</strong> {draftPreview.report.linkCount}</p>
 
         {draftPreview.report.errors.length > 0 && (
           <>
@@ -139,9 +173,7 @@ export const HomePage = ({
 
         <div className="actions">
           <button onClick={onCancelAiDraft}>Cancel</button>
-          <button disabled={!draftPreview.normalizedGraph} onClick={onConfirmAiDraft}>
-            Confirm import
-          </button>
+          <button disabled={!draftPreview.normalizedGraph} onClick={onConfirmAiDraft}>Confirm import</button>
         </div>
       </section>
     )}

@@ -2,80 +2,73 @@
 
 ## Session summary
 
-This session shifted Synapse UX toward its core identity: **a learning tool for concept relationships**, not a graph spectacle.
+This pass strengthened Synapse as a **local-first concept-relationship learning app** by improving practical in-app editing, safer import behavior, All mode readability, and progress visibility without changing product direction.
 
 ## What changed
 
-1. Home/start clarity improvements
-   - Reworked home hero to state value proposition in plain language.
-   - Highlighted three first actions: start with sample, import AI draft, open quick guide.
-   - Added compact **Good fit / Less ideal** guidance.
-   - Kept existing graph open/edit and import/export flows.
+### 1) Real editing primitives in Edit panel
 
-2. All mode readability improvements
-   - Replaced graph-dominant view with an overview + details split.
-   - Added selected-node focus behavior (click node to inspect).
-   - Details panel now prioritizes:
-     - title
-     - summary
-     - detail
-     - outgoing links
-     - incoming links
-     - relationType
-     - cue
-     - reason
-   - Reduced visual dominance of non-selected graph connections.
+- Added **Create card** form (title/summary/detail).
+- Added **Delete card** action with confirmation and connected-edge count warning.
+- Added **Create edge** form with card-title dropdowns for source/target.
+- Added **Delete edge** action with confirmation.
+- Added **edge rewiring** via source/target dropdowns per edge.
+- Edge editing summaries now show **human-readable card titles**.
+- Added validation for edge creation/rewiring:
+  - endpoints must exist
+  - self-loop blocked
+  - duplicate source→target blocked
+- Card deletion now performs safe cascade on connected edges and progress cleanup.
 
-3. Learn mode emphasis
-   - Reframed Learn mode as the main study loop in UI copy.
-   - Improved current-card focus and scanability.
-   - Grouped reveal actions separately from grading actions.
-   - Increased visibility of Remembered / Missed controls.
-   - Kept interactions minimal and recall-focused.
+### 2) Safer full JSON import with recovery
 
-4. Storage architecture prep for growth
-   - Refactored storage into an engine abstraction in `src/storage.ts`.
-   - Added `StorageEngine` interface + default localStorage implementation.
-   - Added `configureStorageEngine(...)` to allow future IndexedDB-backed engine injection.
-   - External behavior remains unchanged (still localStorage for MVP).
+- Full JSON import now opens a **preview step** first:
+  - graph count
+  - total cards
+  - total edges
+  - graph titles
+- Added explicit import mode choice:
+  - **Merge** (default)
+  - **Replace**
+- Replace mode now creates an automatic **backup snapshot** before applying.
+- Added **Restore last backup** action from home.
+- Merge mode no longer overwrites existing graphs; conflicting graph IDs are auto-renamed with numeric suffixes.
 
-5. Docs updates
-   - README now explicitly prioritizes Learn mode and concept-relationship learning.
-   - README includes concise good fit / less ideal guidance.
-   - README clarifies graph is supportive and storage is currently localStorage.
+### 3) All mode readability improvements
 
-## Product direction reinforced
+- Added concept **search/jump** by title.
+- Added **1-hop / 2-hop** neighborhood focus toggle.
+- Selected concept neighborhood is emphasized; unrelated nodes/edges are de-emphasized.
+- Label behavior improved with compact truncation helper (less brittle than raw slicing).
 
-- Prioritize **learning clarity over graph spectacle**.
-- Keep provider-agnostic AI draft workflow.
-- Keep local-first no-backend philosophy for now.
+### 4) Progress visibility
 
-## Intended next storage evolution (without backend)
+- Added compact graph progress line in toolbar:
+  - total edges
+  - reviewed edges
+  - remembered count
+  - missed count
+  - untouched count
 
-If deck size/performance pressure grows:
+## Why these choices
 
-1. Implement `IndexedDbStorageEngine` with same interface:
-   - `getItem(key)`
-   - `setItem(key, value)`
-2. Add app bootstrap logic to select engine (localStorage by default, IndexedDB opt-in).
-3. Add migration routine:
-   - read localStorage keys once
-   - write to IndexedDB
-   - mark migration complete
-4. Keep exported/imported AppData format unchanged to avoid user-facing breakage.
+- Preserves Learn mode as core while making graph refinement feasible inside app.
+- Keeps All mode supportive and lightweight (no heavy graph engine or backend work).
+- Keeps provider-agnostic AI draft path unchanged, with existing preview/validation still intact.
+- Uses local storage abstraction and small pure helper modules for maintainable incremental evolution.
 
 ## What was intentionally left for later
 
 - No backend/auth/sync/Supabase.
-- No collaborative features.
-- No advanced spaced repetition.
-- No graph engine migration.
-- No change to AI draft schema shape.
+- No graph-engine migration.
+- No advanced SRS scheduling.
+- No full visual drag-and-drop graph editor.
+- No relationType filters or weak-link highlighting in All mode yet.
 
-## Session update (current)
+## Suggested next steps
 
-- Re-checked `README.md` and `HANDOFF.md` for consistency.
-- Confirmed that **Card is implemented** in both domain model and UI:
-  - Data model: `Card` interface and `GraphData.cards` are defined.
-  - UI usage: cards are rendered/edited in All, Learn, and Edit panels.
-- Verified project health with a successful production build.
+1. Add relationType filter in All mode and detail panel.
+2. Add selected-card local progress summary and weak-link cues.
+3. Add minimal undo stack for edit operations (especially destructive deletes).
+4. Expand import conflict report UI (show renamed graph IDs explicitly).
+5. Add targeted component tests around EditPanel user interactions.

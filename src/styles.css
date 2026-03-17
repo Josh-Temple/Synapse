@@ -86,7 +86,8 @@ button.danger {
 }
 
 input,
-textarea {
+textarea,
+select {
   width: 100%;
   margin-top: 0.25rem;
   margin-bottom: 0.75rem;
@@ -212,4 +213,9 @@ textarea {
   .all-mode-layout {
     grid-template-columns: 1fr;
   }
+}
+
+input[type="radio"] {
+  width: auto;
+  margin-right: 0.35rem;
 }
