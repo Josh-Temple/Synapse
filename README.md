@@ -23,6 +23,7 @@ The graph view supports understanding, but the core value is the learning loop i
   - **Learn mode**: primary study loop using slot + cue recall
 - Edge-level review outcomes (`remembered` / `missed`)
 - Local persistence via `localStorage` (with a storage abstraction prepared for future IndexedDB migration)
+- PWA-ready install experience with web app manifest, standalone metadata, and offline asset caching via service worker
 - JSON import/export with validation, preview, and safer replace/merge flows
 - Automatic backup snapshot before Replace import + restore-last-backup action
 - AI draft deck import with preview, validation, and app-side normalization
@@ -50,6 +51,13 @@ Build and preview:
 npm run build
 npm run preview
 ```
+
+## PWA support
+
+- Installable as a standalone app on supported browsers/devices.
+- Includes a web app manifest, app icons, theme color, and standalone display metadata.
+- Registers a service worker in production builds to cache the app shell and previously visited same-origin assets for offline reuse.
+- During local development (`npm run dev`), the service worker is intentionally disabled to avoid stale caches while iterating.
 
 ## In-app workflow (provider-agnostic)
 
