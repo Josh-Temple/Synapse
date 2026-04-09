@@ -1,42 +1,62 @@
 # Synapse MVP
 
-Synapse is a local-first concept-learning app for **remembering relationships between ideas**.
+Synapse is a local-first history/concept learning app for **relationship recall**.
 
-The graph view supports understanding, but the core value is the learning loop in **Learn mode**: recall links with slot + cue prompts, reveal answers, and mark remembered/missed.
+The app keeps two axes active at all times:
+- **Mode axis**: `all` / `learn`
+- **Scope axis**: `unit` / `bridge` / `global`
 
-## Core value
+Learn mode remains the center of gravity; graph visuals support retrieval practice.
 
-- Learn concept connections, not just store notes.
-- Review links through active recall.
-- Iterate imported AI-generated decks into higher-quality study graphs.
+## What changed in this version
 
-## Good fit / less ideal
+- Added scope-aware study model: **Unit / Bridge / Global** without replacing All/Learn.
+- Added unit-aware data model (`units`, `card.unitId`, edge `scope`, edge `importance`, card type/date/aliases).
+- Added backward-compatible normalization for legacy graphs without units.
+- Added lightweight due scheduling (`nextDueAt`) with simple local rules.
+- Expanded sample graph to **Age of Revolutions** with 4 units and cross-unit bridges.
 
-- **Good fit:** history, religion, philosophy, psychology, AI/CS, statistics.
-- **Less ideal:** pure vocabulary drilling, long-form memorization, freeform brainstorming.
+## Scope behavior
 
-## What it does
+1. **All × Unit**: show selected unit only.
+2. **Learn × Unit**: review intra-unit links (default).
+3. **All × Bridge**: selected unit + neighboring units; cross-unit edges emphasized.
+4. **Learn × Bridge**: review cross-unit links only.
+5. **All × Global**: full graph with lightweight readability.
+6. **Learn × Global**: full outgoing set; missed links naturally surface via weighting.
 
-- Directed graph model (`cards`, `edges`, `progress`)
-- Two modes:
-  - **All mode**: lightweight overview + selected-concept detail panel
-  - **Learn mode**: primary study loop using slot + cue recall
-- Edge-level review outcomes (`remembered` / `missed`)
-- Local persistence via `localStorage` (with a storage abstraction prepared for future IndexedDB migration)
-- PWA-ready install experience with web app manifest, standalone metadata, and offline asset caching via service worker
-- JSON import/export with validation, preview, and safer replace/merge flows
-- Automatic backup snapshot before Replace import + restore-last-backup action
-- AI draft deck import with preview, validation, and app-side normalization
-- In-app graph editing primitives: create/delete cards, create/delete edges, safe edge rewiring with card-title dropdowns
-- relationType-aware display in All/Learn mode and edit panel
-- All mode readability helpers: 1-hop/2-hop focus and concept search
-- Graph-level progress summary (reviewed/remembered/missed/untouched)
+## AI draft schema (v2)
 
-## Stack
+Draft import remains tolerant. Optional fields are accepted and normalized:
 
-- React + TypeScript + Vite
-- Lightweight custom CSS
-- No backend (current philosophy)
+```json
+{
+  "graph": { "title": "Age of Revolutions" },
+  "units": [{ "id": "enlightenment", "title": "Enlightenment" }],
+  "cards": [
+    {
+      "title": "Montesquieu",
+      "summary": "Separation of powers thinker",
+      "unitId": "enlightenment",
+      "cardType": "person",
+      "dateLabel": "1689–1755",
+      "aliases": ["Charles de Montesquieu"]
+    }
+  ],
+  "links": [
+    {
+      "from": "Montesquieu",
+      "to": "Separation of Powers",
+      "cue": "key idea",
+      "reason": "He articulates institutional balancing",
+      "relationType": "articulates",
+      "importance": "core"
+    }
+  ]
+}
+```
+
+If units are omitted, the app creates a synthetic default unit and keeps old data valid.
 
 ## Local setup
 
@@ -45,114 +65,17 @@ npm install
 npm run dev
 ```
 
-Build and preview:
+## Testing
 
 ```bash
+npm run test
 npm run build
-npm run preview
 ```
 
-## PWA support
+## Product boundaries
 
-- Installable as a standalone app on supported browsers/devices.
-- Includes a web app manifest, app icons, theme color, and standalone display metadata.
-- Registers a service worker in production builds to cache the app shell and previously visited same-origin assets for offline reuse.
-- During local development (`npm run dev`), the service worker is intentionally disabled to avoid stale caches while iterating.
-
-## In-app workflow (provider-agnostic)
-
-1. Start from **Load sample deck** or **Import AI Draft**.
-2. Use **All mode** to inspect one selected concept and its incoming/outgoing links.
-3. Use **Learn mode** to recall destinations/reasons from slot + cue hints.
-4. Refine card/edge wording over time.
-
-Synapse is provider-agnostic and local-first. NotebookLM, GPTs, Gems, ChatGPT, Gemini, or manual authoring can all be used as external draft sources.
-
-## AI-generated deck workflow
-
-Synapse accepts AI output as a **draft** and normalizes it into the strict internal graph format.
-
-Typical workflow:
-
-1. Use external tools to discover candidate concepts and links.
-2. Format that output into Synapse draft JSON.
-3. Import via **Import AI Draft**.
-4. Validate preview, then confirm import.
-5. Study and iteratively refine.
-
-## Draft deck spec (AI draft import v1)
-
-```json
-{
-  "graph": {
-    "title": "Theravada Buddhism Basics",
-    "description": "Core concepts and relationships"
-  },
-  "cards": [
-    {
-      "title": "Four Noble Truths",
-      "summary": "Framework of suffering and liberation.",
-      "detail": "Optional longer explanation.",
-      "aliases": ["四聖諦"]
-    }
-  ],
-  "links": [
-    {
-      "from": "Four Noble Truths",
-      "to": "Craving",
-      "relationType": "causes",
-      "reason": "Craving is presented as a cause of suffering.",
-      "cue": "cause"
-    }
-  ],
-  "meta": {
-    "generator": "ai",
-    "topic": "Theravada Buddhism"
-  }
-}
-```
-
-## Safer full import flow
-
-1. Select **Import full JSON**.
-2. Review preview (graph/card/edge counts + graph titles).
-3. Choose mode:
-   - **Merge** (default, safer): imported graphs are appended; ID conflicts are auto-renamed.
-   - **Replace**: replace all current data after automatic backup snapshot.
-4. Use **Restore last backup** to recover from an accidental replace.
-
-## Import / export format (full AppData)
-
-The app still imports/exports normalized full payload:
-
-```json
-{
-  "graphs": [
-    {
-      "id": "graph-id",
-      "title": "Graph title",
-      "cards": [],
-      "edges": [],
-      "progress": [],
-      "createdAt": "ISO-8601",
-      "updatedAt": "ISO-8601"
-    }
-  ]
-}
-```
-
-## MVP limitations
-
-- No authentication or backend
-- No cloud sync
-- No advanced spaced repetition
-- No collaborative editing
-- No direct NotebookLM/GPTs/Gems API integration
-- Graph rendering remains intentionally lightweight
-
-## Deploy to Vercel
-
-- Framework: Vite
-- Build command: `npm run build`
-- Output directory: `dist`
-- SPA rewrite to `/index.html`
+- No backend/auth/sync
+- No multi-user features
+- No graph-engine migration
+- No full advanced SRS (only lightweight due scheduling)
+- No heavy visual graph tooling

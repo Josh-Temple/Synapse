@@ -8,7 +8,15 @@ import { HomePage } from './components/HomePage'
 import { LearnModePanel } from './components/LearnModePanel'
 import { demoData } from './demoData'
 import { validateAndNormalizeAppData } from './graphValidation'
-import { createCardInGraph, createEdgeInGraph, deleteCardInGraph, deleteEdgeInGraph, rewireEdgeInGraph } from './graphMutations'
+import {
+  createCardInGraph,
+  createEdgeInGraph,
+  createUnitInGraph,
+  deleteCardInGraph,
+  deleteEdgeInGraph,
+  deleteUnitInGraph,
+  rewireEdgeInGraph,
+} from './graphMutations'
 import { buildFullImportPreview, mergeAppData } from './importFlow'
 import { applyReview } from './progress'
 import {
@@ -22,8 +30,14 @@ import {
   saveLearnState,
 } from './storage'
 import './styles.css'
-import type { AppData, GraphData, LearnState, Mode, ReviewResult } from './types'
-import { buildInitialLearnState, toggleIdInList } from './utils/learnState'
+import type { AppData, GraphData, LearnState, Mode, ReviewResult, StudyScope } from './types'
+import { migrateLearnState, toggleIdInList } from './utils/learnState'
+import {
+  getBridgeNeighborUnitIds,
+  outgoingReviewEdgesForCurrentCard,
+  visibleCardsForScope,
+  visibleEdgesForScope,
+} from './utils/studyScope'
 
 function App() {
   const [appData, setAppData] = useState<AppData>(() => loadAppData())
@@ -35,16 +49,13 @@ function App() {
   const [fullImportPreview, setFullImportPreview] = useState<ReturnType<typeof buildFullImportPreview> | null>(null)
   const [fullImportMode, setFullImportMode] = useState<'merge' | 'replace'>('merge')
   const [isHelpOpen, setIsHelpOpen] = useState(false)
+  const [scope, setScope] = useState<StudyScope>('unit')
 
-  const selectedGraph = useMemo(
-    () => appData.graphs.find((graph) => graph.id === selectedGraphId) ?? null,
-    [appData.graphs, selectedGraphId],
-  )
+  const selectedGraph = useMemo(() => appData.graphs.find((graph) => graph.id === selectedGraphId) ?? null, [appData.graphs, selectedGraphId])
 
   const currentLearnState = useMemo(() => {
     if (!selectedGraph) return null
-    if (learnState && learnState.graphId === selectedGraph.id) return learnState
-    return buildInitialLearnState(selectedGraph)
+    return migrateLearnState(selectedGraph, learnState)
   }, [learnState, selectedGraph])
 
   const setGraphAndPersist = (graphId: string) => {
@@ -55,9 +66,7 @@ function App() {
   const updateGraph = (graphId: string, updater: (graph: GraphData) => GraphData) => {
     setAppData((current) => {
       const updated = {
-        graphs: current.graphs.map((graph) =>
-          graph.id === graphId ? { ...updater(graph), updatedAt: new Date().toISOString() } : graph,
-        ),
+        graphs: current.graphs.map((graph) => (graph.id === graphId ? { ...updater(graph), updatedAt: new Date().toISOString() } : graph)),
       }
       saveAppData(updated)
       return updated
@@ -80,8 +89,7 @@ function App() {
       setFullImportMode('merge')
       setImportError('')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Import failed'
-      setImportError(message)
+      setImportError(error instanceof Error ? error.message : 'Import failed')
       setFullImportPreview(null)
     } finally {
       event.target.value = ''
@@ -90,36 +98,21 @@ function App() {
 
   const confirmFullImport = () => {
     if (!fullImportPreview) return
-
     const nextData = fullImportMode === 'merge' ? mergeAppData(appData, fullImportPreview.data) : fullImportPreview.data
-    if (fullImportMode === 'replace') {
-      saveImportBackup(appData)
-    }
-
+    if (fullImportMode === 'replace') saveImportBackup(appData)
     setAppData(nextData)
     saveAppData(nextData)
-
     const firstGraph = nextData.graphs[0]
-    if (firstGraph) {
-      setGraphAndPersist(firstGraph.id)
-    }
-
+    if (firstGraph) setGraphAndPersist(firstGraph.id)
     setFullImportPreview(null)
   }
 
   const restoreLastBackup = () => {
     const backup = loadImportBackup()
-    if (!backup) {
-      setImportError('No backup snapshot found. Run a Replace import first.')
-      return
-    }
-
+    if (!backup) return setImportError('No backup snapshot found. Run a Replace import first.')
     setAppData(backup)
     saveAppData(backup)
-    const firstGraph = backup.graphs[0]
-    if (firstGraph) {
-      setGraphAndPersist(firstGraph.id)
-    }
+    if (backup.graphs[0]) setGraphAndPersist(backup.graphs[0].id)
     setImportError('')
   }
 
@@ -128,15 +121,12 @@ function App() {
     if (!file) return
 
     try {
-      const text = await file.text()
-      const parsed = JSON.parse(text)
-      const preview = buildPreviewFromAiDraft(parsed)
+      const preview = buildPreviewFromAiDraft(JSON.parse(await file.text()))
       setDraftPreview(preview)
       setImportError('')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to parse AI draft.'
       setDraftPreview(null)
-      setImportError(`AI draft parse failed: ${message}`)
+      setImportError(`AI draft parse failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       event.target.value = ''
     }
@@ -144,16 +134,13 @@ function App() {
 
   const confirmAiImport = () => {
     if (!draftPreview?.normalizedGraph) return
-
-    const existingIds = new Set(appData.graphs.map((graph) => graph.id))
-    const graphId = ensureUniqueGraphId(draftPreview.normalizedGraph.id, existingIds)
+    const graphId = ensureUniqueGraphId(draftPreview.normalizedGraph.id, new Set(appData.graphs.map((graph) => graph.id)))
     const graphToImport = { ...draftPreview.normalizedGraph, id: graphId }
     const nextData = { graphs: [...appData.graphs, graphToImport] }
-
     setAppData(nextData)
     saveAppData(nextData)
     setGraphAndPersist(graphId)
-    persistLearn(buildInitialLearnState(graphToImport))
+    persistLearn(migrateLearnState(graphToImport, null))
     setDraftPreview(null)
   }
 
@@ -170,134 +157,90 @@ function App() {
   const createNewGraph = () => {
     const now = new Date().toISOString()
     const graphId = `graph-${Date.now()}`
-
+    const unitId = `unit-${Date.now()}`
     const nextGraph: GraphData = {
       id: graphId,
       title: 'New Graph',
       description: 'Edit this graph to get started.',
-      cards: [{ id: `card-${Date.now()}`, title: 'Start Node', summary: 'Add summary', detail: 'Add detail' }],
+      units: [{ id: unitId, title: 'Unit 1', order: 1 }],
+      cards: [{ id: `card-${Date.now()}`, title: 'Start Node', summary: 'Add summary', detail: 'Add detail', unitId, cardType: 'concept' }],
       edges: [],
       progress: [],
       createdAt: now,
       updatedAt: now,
     }
-
     const updatedAppData = { graphs: [...appData.graphs, nextGraph] }
     setAppData(updatedAppData)
     saveAppData(updatedAppData)
     setGraphAndPersist(graphId)
-    persistLearn(buildInitialLearnState(nextGraph))
+    persistLearn(migrateLearnState(nextGraph, null))
   }
 
   const loadSampleDeck = () => {
     const sample = demoData.graphs[0]
-    const existingIds = new Set(appData.graphs.map((graph) => graph.id))
-    const graphId = ensureUniqueGraphId(sample.id, existingIds)
+    const graphId = ensureUniqueGraphId(sample.id, new Set(appData.graphs.map((graph) => graph.id)))
     const now = new Date().toISOString()
-
     const graphToImport: GraphData = {
       ...sample,
       id: graphId,
       title: `${sample.title} (Sample)`,
       cards: sample.cards.map((card) => ({ ...card })),
+      units: sample.units?.map((unit) => ({ ...unit })),
       edges: sample.edges.map((edge) => ({ ...edge })),
       progress: sample.progress.map((item) => ({ ...item })),
       createdAt: now,
       updatedAt: now,
     }
-
     const nextData = { graphs: [...appData.graphs, graphToImport] }
     setAppData(nextData)
     saveAppData(nextData)
     setGraphAndPersist(graphId)
-    persistLearn(buildInitialLearnState(graphToImport))
+    persistLearn(migrateLearnState(graphToImport, null))
   }
 
   if (!selectedGraph) {
-    return (
-      <HomePage
-        draftPreview={draftPreview}
-        fullImportMode={fullImportMode}
-        fullImportPreview={fullImportPreview}
-        graphs={appData.graphs}
-        importError={importError}
-        isHelpOpen={isHelpOpen}
-        onOpenGraph={setGraphAndPersist}
-        onCreateGraph={createNewGraph}
-        onImport={handleImport}
-        onImportAiDraft={handleAiDraftFile}
-        onConfirmAiDraft={confirmAiImport}
-        onCancelAiDraft={() => setDraftPreview(null)}
-        onConfirmFullImport={confirmFullImport}
-        onCancelFullImport={() => setFullImportPreview(null)}
-        onChangeFullImportMode={setFullImportMode}
-        onRestoreLastBackup={restoreLastBackup}
-        onExport={handleExport}
-        onLoadSampleDeck={loadSampleDeck}
-        onToggleHelp={() => setIsHelpOpen((current) => !current)}
-      />
-    )
+    return <HomePage
+      draftPreview={draftPreview}
+      fullImportMode={fullImportMode}
+      fullImportPreview={fullImportPreview}
+      graphs={appData.graphs}
+      importError={importError}
+      isHelpOpen={isHelpOpen}
+      onOpenGraph={setGraphAndPersist}
+      onCreateGraph={createNewGraph}
+      onImport={handleImport}
+      onImportAiDraft={handleAiDraftFile}
+      onConfirmAiDraft={confirmAiImport}
+      onCancelAiDraft={() => setDraftPreview(null)}
+      onConfirmFullImport={confirmFullImport}
+      onCancelFullImport={() => setFullImportPreview(null)}
+      onChangeFullImportMode={setFullImportMode}
+      onRestoreLastBackup={restoreLastBackup}
+      onExport={handleExport}
+      onLoadSampleDeck={loadSampleDeck}
+      onToggleHelp={() => setIsHelpOpen((current) => !current)}
+    />
   }
 
   const graph = selectedGraph
-  const learn = currentLearnState ?? buildInitialLearnState(graph)
-  const outgoingEdges = graph.edges.filter((edge) => edge.from === learn.currentCardId)
+  const learn = currentLearnState ?? migrateLearnState(graph, null)
+  const bridgeUnits = learn.selectedBridgeUnitIds.length ? learn.selectedBridgeUnitIds : getBridgeNeighborUnitIds(graph, learn.selectedUnitId)
+  const visibleCards = visibleCardsForScope(graph, scope, learn.selectedUnitId, bridgeUnits)
+  const visibleEdges = visibleEdgesForScope(graph, scope, learn.selectedUnitId, bridgeUnits)
+  const reviewEdges = outgoingReviewEdgesForCurrentCard(graph, { ...learn, studyScope: scope, selectedBridgeUnitIds: bridgeUnits })
 
-  const setCurrentCard = (cardId: string) => {
-    persistLearn({
-      ...learn,
-      currentCardId: cardId,
-      revealedDestinationEdgeIds: [],
-      revealedReasonEdgeIds: [],
-      reviewedEdgeResults: {},
-    })
-  }
+  const setCurrentCard = (cardId: string) => persistLearn({ ...learn, currentCardId: cardId, revealedDestinationEdgeIds: [], revealedReasonEdgeIds: [], reviewedEdgeResults: {} })
 
   const revealAll = (kind: 'dest' | 'reason') => {
-    const outgoingEdgeIds = outgoingEdges.map((edge) => edge.id)
-    if (kind === 'dest') {
-      persistLearn({ ...learn, revealedDestinationEdgeIds: outgoingEdgeIds })
-      return
-    }
-
-    persistLearn({ ...learn, revealedReasonEdgeIds: outgoingEdgeIds })
+    const ids = reviewEdges.map((edge) => edge.id)
+    persistLearn({ ...learn, studyScope: scope, revealedDestinationEdgeIds: kind === 'dest' ? ids : learn.revealedDestinationEdgeIds, revealedReasonEdgeIds: kind === 'reason' ? ids : learn.revealedReasonEdgeIds })
   }
 
   const markResult = (edgeId: string, result: ReviewResult) => {
     const currentProgress = graph.progress.find((item) => item.edgeId === edgeId)
-    const nextProgress = applyReview(currentProgress, edgeId, result)
-
-    updateGraph(graph.id, (target) => ({
-      ...target,
-      progress: [...target.progress.filter((item) => item.edgeId !== edgeId), nextProgress],
-    }))
-
-    persistLearn({
-      ...learn,
-      reviewedEdgeResults: { ...learn.reviewedEdgeResults, [edgeId]: result },
-    })
-  }
-
-  const updateCard = (cardId: string, field: 'title' | 'summary' | 'detail', value: string) => {
-    updateGraph(graph.id, (target) => ({
-      ...target,
-      cards: target.cards.map((card) => (card.id === cardId ? { ...card, [field]: value } : card)),
-    }))
-  }
-
-  const updateEdge = (edgeId: string, field: 'cue' | 'reason' | 'slot' | 'relationType', value: string) => {
-    updateGraph(graph.id, (target) => ({
-      ...target,
-      edges: target.edges.map((edge) =>
-        edge.id === edgeId
-          ? { ...edge, [field]: field === 'relationType' && value.trim() === '' ? undefined : value }
-          : edge,
-      ),
-    }))
-  }
-
-  const updateGraphField = (field: 'title' | 'description', value: string) => {
-    updateGraph(graph.id, (target) => ({ ...target, [field]: value }))
+    const nextProgress = applyReview(currentProgress, edgeId, result, scope)
+    updateGraph(graph.id, (target) => ({ ...target, progress: [...target.progress.filter((item) => item.edgeId !== edgeId), nextProgress] }))
+    persistLearn({ ...learn, studyScope: scope, reviewedEdgeResults: { ...learn.reviewedEdgeResults, [edgeId]: result } })
   }
 
   return (
@@ -305,68 +248,99 @@ function App() {
       <GraphToolbar
         graph={graph}
         mode={mode}
+        scope={scope}
+        selectedUnitId={learn.selectedUnitId}
+        selectedBridgeUnitIds={bridgeUnits}
+        visibleEdges={visibleEdges}
+        onChangeScope={(next) => { setScope(next); persistLearn({ ...learn, studyScope: next }) }}
+        onChangeUnit={(unitId) => persistLearn({ ...learn, selectedUnitId: unitId, selectedBridgeUnitIds: getBridgeNeighborUnitIds(graph, unitId) })}
         onGoHome={() => setSelectedGraphId(null)}
-        onToggleMode={() => setMode((current) => (current === 'all' ? 'learn' : 'all'))}
-        onRandomStart={() => persistLearn(buildInitialLearnState(graph))}
+        onToggleMode={() => setMode((current) => current === 'all' ? 'learn' : 'all')}
+        onRandomStart={() => persistLearn(migrateLearnState(graph, null))}
         onResumeLastCard={() => {
           const last = loadLearnState()
           if (last && last.graphId === graph.id) {
-            persistLearn(last)
+            const migrated = migrateLearnState(graph, last)
+            setScope(migrated.studyScope)
+            persistLearn(migrated)
           }
         }}
       />
 
       {mode === 'all' ? (
-        <AllModePanel graph={graph} />
+        <AllModePanel graph={graph} cards={visibleCards} edges={visibleEdges} scope={scope} selectedUnitId={learn.selectedUnitId} />
       ) : (
         <LearnModePanel
           cards={graph.cards}
-          outgoingEdges={outgoingEdges}
-          learnState={learn}
+          outgoingEdges={reviewEdges}
+          learnState={{ ...learn, studyScope: scope }}
+          units={graph.units ?? []}
           onRevealAllDestinations={() => revealAll('dest')}
           onRevealAllReasons={() => revealAll('reason')}
-          onToggleDestinationReveal={(edgeId) =>
-            persistLearn({
-              ...learn,
-              revealedDestinationEdgeIds: toggleIdInList(learn.revealedDestinationEdgeIds, edgeId),
-            })
-          }
-          onToggleReasonReveal={(edgeId) =>
-            persistLearn({
-              ...learn,
-              revealedReasonEdgeIds: toggleIdInList(learn.revealedReasonEdgeIds, edgeId),
-            })
-          }
+          onToggleDestinationReveal={(edgeId) => persistLearn({ ...learn, revealedDestinationEdgeIds: toggleIdInList(learn.revealedDestinationEdgeIds, edgeId) })}
+          onToggleReasonReveal={(edgeId) => persistLearn({ ...learn, revealedReasonEdgeIds: toggleIdInList(learn.revealedReasonEdgeIds, edgeId) })}
           onMarkResult={markResult}
           onFollowEdge={(edge) => setCurrentCard(edge.to)}
+          onSwitchToBridge={() => { setScope('bridge'); persistLearn({ ...learn, studyScope: 'bridge' }) }}
+          onNextCardSameUnit={() => {
+            const sameUnitCards = graph.cards.filter((card) => card.unitId === learn.selectedUnitId)
+            const candidate = sameUnitCards.find((card) => card.id !== learn.currentCardId)
+            if (candidate) setCurrentCard(candidate.id)
+          }}
+          onRandomCardSameScope={() => {
+            const cards = visibleCardsForScope(graph, scope, learn.selectedUnitId, bridgeUnits)
+            if (cards[0]) setCurrentCard(cards[Math.floor(Math.random() * cards.length)].id)
+          }}
         />
       )}
 
       <EditPanel
         graph={graph}
-        onUpdateGraphField={updateGraphField}
-        onUpdateCard={updateCard}
-        onUpdateEdge={updateEdge}
-        onCreateCard={(input) => {
-          const result = createCardInGraph(graph, input)
+        onUpdateGraphField={(field, value) => updateGraph(graph.id, (target) => ({ ...target, [field]: value }))}
+        onUpdateCard={(cardId, field, value) => updateGraph(graph.id, (target) => ({
+          ...target,
+          cards: target.cards.map((card) => {
+            if (card.id !== cardId) return card
+            if (field === 'aliases') return { ...card, aliases: value.split(',').map((item) => item.trim()).filter(Boolean) }
+            if (field === 'cardType') return { ...card, cardType: (value || undefined) as typeof card.cardType }
+            if (field === 'dateLabel') return { ...card, dateLabel: value || undefined }
+            return { ...card, [field]: value }
+          }),
+        }))}
+        onUpdateEdge={(edgeId, field, value) => updateGraph(graph.id, (target) => ({
+          ...target,
+          edges: target.edges.map((edge) => {
+            if (edge.id !== edgeId) return edge
+            if (field === 'relationType') return { ...edge, relationType: value.trim() === '' ? undefined : value }
+            if (field === 'importance') return { ...edge, importance: value as 'core' | 'secondary' }
+            return { ...edge, [field]: value }
+          }),
+        }))}
+        onCreateUnit={(input) => {
+          const result = createUnitInGraph(graph, input)
           if (result.error) return result.error
           updateGraph(graph.id, () => result.graph)
           return null
         }}
-        onDeleteCard={(cardId) => {
-          const result = deleteCardInGraph(graph, cardId)
-          updateGraph(graph.id, () => result.graph)
+        onDeleteUnit={(unitId) => {
+          const result = deleteUnitInGraph(graph, unitId)
+          if (!result.error) updateGraph(graph.id, () => result.graph)
+          return result.error ?? null
         }}
+        onCreateCard={(input) => {
+          const result = createCardInGraph(graph, { ...input, cardType: input.cardType as 'event' | 'person' | 'concept' | 'institution' | 'text' | 'place' | undefined })
+          if (result.error) return result.error
+          updateGraph(graph.id, () => result.graph)
+          return null
+        }}
+        onDeleteCard={(cardId) => updateGraph(graph.id, () => deleteCardInGraph(graph, cardId).graph)}
         onCreateEdge={(input) => {
           const result = createEdgeInGraph(graph, input)
           if (result.error) return result.error
           updateGraph(graph.id, () => result.graph)
           return null
         }}
-        onDeleteEdge={(edgeId) => {
-          const result = deleteEdgeInGraph(graph, edgeId)
-          updateGraph(graph.id, () => result.graph)
-        }}
+        onDeleteEdge={(edgeId) => updateGraph(graph.id, () => deleteEdgeInGraph(graph, edgeId).graph)}
         onRewireEdge={(edgeId, from, to) => {
           const result = rewireEdgeInGraph(graph, edgeId, from, to)
           if (result.error) return result.error

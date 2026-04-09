@@ -1,11 +1,15 @@
 import { assignMissingSlots } from './slotAssignment'
-import type { Edge, EdgeProgress, GraphData } from './types'
+import { DEFAULT_UNIT_ID } from './utils/studyScope'
+import type { Edge, EdgeProgress, GraphData, Unit } from './types'
 
 type DraftCard = {
   title?: unknown
   summary?: unknown
   detail?: unknown
   aliases?: unknown
+  unitId?: unknown
+  cardType?: unknown
+  dateLabel?: unknown
 }
 
 type DraftLink = {
@@ -14,6 +18,7 @@ type DraftLink = {
   relationType?: unknown
   reason?: unknown
   cue?: unknown
+  importance?: unknown
 }
 
 type DraftGraph = {
@@ -21,8 +26,16 @@ type DraftGraph = {
   description?: unknown
 }
 
+type DraftUnit = {
+  id?: unknown
+  title?: unknown
+  description?: unknown
+  order?: unknown
+}
+
 type DraftDeck = {
   graph?: DraftGraph
+  units?: DraftUnit[]
   cards?: DraftCard[]
   links?: DraftLink[]
   meta?: unknown
@@ -103,6 +116,25 @@ export const buildPreviewFromAiDraft = (raw: unknown): DraftImportPreview => {
   const graphTitle = toText(deck.graph?.title) || 'Untitled graph'
   const graphDescription = toText(deck.graph?.description)
 
+  const unitIds = new Set<string>()
+  const units: Unit[] = (Array.isArray(deck.units) ? deck.units : [])
+    .map((unit, index) => ({
+      id: toText(unit.id) || slugify(toText(unit.title) || `unit-${index + 1}`),
+      title: toText(unit.title) || `Unit ${index + 1}`,
+      description: toText(unit.description) || undefined,
+      order: typeof unit.order === 'number' ? unit.order : index + 1,
+    }))
+    .filter((unit) => {
+      if (unitIds.has(unit.id)) {
+        warningsSet.add(`Duplicate unit id "${unit.id}" ignored.`)
+        return false
+      }
+      unitIds.add(unit.id)
+      return true
+    })
+
+  if (units.length === 0) units.push({ id: DEFAULT_UNIT_ID, title: 'Default Unit', order: 1 })
+
   const rawCards = Array.isArray(deck.cards) ? deck.cards : []
   const rawLinks = Array.isArray(deck.links) ? deck.links : []
 
@@ -132,11 +164,10 @@ export const buildPreviewFromAiDraft = (raw: unknown): DraftImportPreview => {
     titleKeyToCardId.set(titleKey, id)
 
     const aliases = Array.isArray(card.aliases)
-      ? card.aliases.filter((alias): alias is string => typeof alias === 'string')
+      ? card.aliases.filter((alias): alias is string => typeof alias === 'string').map((item) => item.trim()).filter(Boolean)
       : []
 
-    aliases.forEach((alias) => {
-      const aliasText = alias.trim()
+    aliases.forEach((aliasText) => {
       const aliasKey = normalizeKey(aliasText)
       if (!aliasKey || aliasKey === titleKey) return
 
@@ -150,15 +181,20 @@ export const buildPreviewFromAiDraft = (raw: unknown): DraftImportPreview => {
     })
 
     const summary = toText(card.summary)
-    if (!summary) {
-      warningsSet.add(`Card "${title}" is missing summary.`)
-    }
+    if (!summary) warningsSet.add(`Card "${title}" is missing summary.`)
+
+    const unitId = toText(card.unitId)
+    const resolvedUnitId = unitId && unitIds.has(unitId) ? unitId : units[0].id
 
     cards.push({
       id,
       title,
       summary,
       detail: toText(card.detail),
+      aliases,
+      unitId: resolvedUnitId,
+      cardType: toText(card.cardType) as GraphData['cards'][number]['cardType'],
+      dateLabel: toText(card.dateLabel) || undefined,
     })
   })
 
@@ -187,14 +223,13 @@ export const buildPreviewFromAiDraft = (raw: unknown): DraftImportPreview => {
     }
 
     const cue = toText(link.cue)
-    if (cue.split(/\s+/).filter(Boolean).length > 3) {
-      warningsSet.add(`Link "${fromRef} -> ${toRef}" has a long cue: "${cue}".`)
-    }
+    if (cue.split(/\s+/).filter(Boolean).length > 3) warningsSet.add(`Link "${fromRef} -> ${toRef}" has a long cue: "${cue}".`)
 
     const reason = toText(link.reason)
-    if (!reason) {
-      warningsSet.add(`Link "${fromRef} -> ${toRef}" is missing reason.`)
-    }
+    if (!reason) warningsSet.add(`Link "${fromRef} -> ${toRef}" is missing reason.`)
+
+    const fromCard = cards.find((item) => item.id === fromId)
+    const toCard = cards.find((item) => item.id === toId)
 
     edges.push({
       id: uniqueId(`edge-${edges.length + 1}`, edgeIds),
@@ -204,6 +239,8 @@ export const buildPreviewFromAiDraft = (raw: unknown): DraftImportPreview => {
       slot: '',
       cue,
       relationType: toText(link.relationType) || undefined,
+      importance: toText(link.importance) === 'core' ? 'core' : 'secondary',
+      scope: fromCard && toCard && fromCard.unitId !== toCard.unitId ? 'cross-unit' : 'intra-unit',
     })
   })
 
@@ -215,9 +252,7 @@ export const buildPreviewFromAiDraft = (raw: unknown): DraftImportPreview => {
     })
 
     cards.forEach((card) => {
-      if (!linkedCardIds.has(card.id)) {
-        warningsSet.add(`Card "${card.title}" is isolated.`)
-      }
+      if (!linkedCardIds.has(card.id)) warningsSet.add(`Card "${card.title}" is isolated.`)
     })
 
     infos.push('Slots are auto-assigned for outgoing links.')
@@ -235,15 +270,14 @@ export const buildPreviewFromAiDraft = (raw: unknown): DraftImportPreview => {
     infos,
   }
 
-  if (errors.length > 0) {
-    return { report, normalizedGraph: null }
-  }
+  if (errors.length > 0) return { report, normalizedGraph: null }
 
   const now = new Date().toISOString()
   const graph: GraphData = {
     id: slugify(graphTitle),
     title: graphTitle,
     description: graphDescription,
+    units,
     cards,
     edges: assignMissingSlots(edges),
     progress: createProgress(edges),

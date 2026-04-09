@@ -21,6 +21,7 @@ export const buildFullImportPreview = (data: AppData): FullImportPreview => ({
 
 const cloneGraph = (graph: GraphData): GraphData => ({
   ...graph,
+  units: graph.units?.map((unit) => ({ ...unit })),
   cards: graph.cards.map((card) => ({ ...card })),
   edges: graph.edges.map((edge) => ({ ...edge })),
   progress: graph.progress.map((item) => ({ ...item })),
