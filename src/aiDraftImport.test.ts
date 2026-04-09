@@ -78,6 +78,21 @@ describe('buildPreviewFromAiDraft', () => {
   })
 })
 
+
+  it('accepts optional units and link importance', () => {
+    const preview = buildPreviewFromAiDraft({
+      graph: { title: 'Units' },
+      units: [{ id: 'u1', title: 'Unit 1' }, { id: 'u2', title: 'Unit 2' }],
+      cards: [{ title: 'A', summary: 'a', unitId: 'u1' }, { title: 'B', summary: 'b', unitId: 'u2' }],
+      links: [{ from: 'A', to: 'B', cue: 'bridge', reason: 'x', importance: 'core' }],
+    })
+
+    expect(preview.report.errors).toHaveLength(0)
+    expect(preview.normalizedGraph?.units).toHaveLength(2)
+    expect(preview.normalizedGraph?.edges[0].importance).toBe('core')
+    expect(preview.normalizedGraph?.edges[0].scope).toBe('cross-unit')
+  })
+
 describe('ensureUniqueGraphId', () => {
   it('adds numeric suffix when id already exists', () => {
     const existing = new Set(['graph-id', 'graph-id-2'])

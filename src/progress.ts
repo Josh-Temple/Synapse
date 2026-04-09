@@ -1,4 +1,5 @@
-import type { EdgeProgress, ReviewResult } from './types'
+import { computeNextDueAt } from './utils/reviewQueue'
+import type { EdgeProgress, ReviewResult, StudyScope } from './types'
 
 export const getEdgeStrength = (progress?: EdgeProgress): number => {
   if (!progress || progress.seenCount === 0) return 0
@@ -9,8 +10,9 @@ export const applyReview = (
   current: EdgeProgress | undefined,
   edgeId: string,
   result: ReviewResult,
+  scope?: StudyScope,
 ): EdgeProgress => {
-  const now = new Date().toISOString()
+  const now = new Date()
 
   return {
     edgeId,
@@ -18,6 +20,8 @@ export const applyReview = (
     rememberedCount: (current?.rememberedCount ?? 0) + (result === 'remembered' ? 1 : 0),
     missedCount: (current?.missedCount ?? 0) + (result === 'missed' ? 1 : 0),
     lastResult: result,
-    lastReviewedAt: now,
+    lastReviewedAt: now.toISOString(),
+    nextDueAt: computeNextDueAt(current, result, now),
+    lastStudiedScope: scope,
   }
 }
