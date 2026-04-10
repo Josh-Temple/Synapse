@@ -20,6 +20,8 @@ Learn mode remains the center of gravity; graph visuals support retrieval practi
   - moved graph editing into a dedicated edit surface
   - introduced clearer button hierarchy (primary vs tertiary/ghost actions)
   - replaced noisy top controls with compact mode + overflow actions
+  - shifted Learn mode to a single-link recall flow with progress and sticky bottom evaluation bar
+  - added mobile Graph/Details toggle in All mode and collapsible filter sheet
 
 ## Scope behavior
 

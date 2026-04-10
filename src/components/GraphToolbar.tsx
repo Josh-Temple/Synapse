@@ -34,9 +34,6 @@ export const GraphToolbar = ({
 }: GraphToolbarProps) => {
   const visibleProgress = graph.progress.filter((item) => visibleEdges.some((edge) => edge.id === item.edgeId))
   const reviewed = visibleProgress.filter((item) => item.seenCount > 0).length
-  const remembered = visibleProgress.reduce((total, item) => total + item.rememberedCount, 0)
-  const missed = visibleProgress.reduce((total, item) => total + item.missedCount, 0)
-
   const selectedUnitTitle = useMemo(() => graph.units?.find((unit) => unit.id === selectedUnitId)?.title ?? '—', [graph.units, selectedUnitId])
 
   return (
@@ -59,10 +56,7 @@ export const GraphToolbar = ({
       </div>
 
       <div className="context-line">
-        <span>{mode} · {scope}</span>
-        {(scope === 'unit' || scope === 'bridge') && <span>Unit: {selectedUnitTitle}</span>}
-        <span>Reviewed {reviewed}/{visibleEdges.length}</span>
-        <span>Remembered {remembered} · Missed {missed}</span>
+        <span>{mode} · {scope} · {(scope === 'unit' || scope === 'bridge') ? selectedUnitTitle : 'all units'} · {reviewed}/{visibleEdges.length} reviewed</span>
       </div>
 
       <div className="toolbar-row">

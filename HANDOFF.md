@@ -11,6 +11,17 @@
   - reveal/meta actions are tertiary (ghost) while remembered/missed/next remain direct action controls
 - Reduced visual container intensity in All mode and aligned filters/controls to the same minimal language.
 
+## Session update (single-threaded study flow pass)
+
+- Learn mode now presents one recall link at a time with explicit progress (`x of y links`) instead of rendering all slots simultaneously.
+- Added auto-advance to the next recall link after `Remembered` / `Missed` to maintain uninterrupted study flow.
+- Moved secondary learn controls (`Reveal all`, `Random in scope`, `Switch to bridge`) into an overflow menu and kept reveal interaction in-content.
+- Added a sticky, thumb-friendly bottom action bar in Learn mode for high-frequency actions (`Remembered`, `Missed`, `Next/Skip`).
+- Reduced metadata density in Learn mode: cue and concept title are dominant; relation/importance are de-emphasized unless reveal context is active.
+- In All mode, introduced a compact mobile `Graph / Details` toggle so graph and detailed reading are no longer a single long stacked scroll.
+- Collapsed non-search filters into a `Filters` sheet while keeping search immediately accessible.
+- Compressed top context into one concise summary line to remove redundant headings/labels.
+
 ## Session summary
 
 This pass upgraded Synapse from single-axis study behavior to a **two-axis model**:

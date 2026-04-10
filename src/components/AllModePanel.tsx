@@ -20,6 +20,7 @@ export const AllModePanel = ({ graph, cards, edges, scope, selectedUnitId }: All
   const [relationFilter, setRelationFilter] = useState('all')
   const [importanceFilter, setImportanceFilter] = useState<'all' | 'core'>('all')
   const [cardTypeFilter, setCardTypeFilter] = useState('all')
+  const [mobilePane, setMobilePane] = useState<'graph' | 'details'>('graph')
 
   useEffect(() => {
     setSelectedCardId(cards[0]?.id ?? '')
@@ -60,19 +61,28 @@ export const AllModePanel = ({ graph, cards, edges, scope, selectedUnitId }: All
   return (
     <section className="all-panel">
       <h2>All mode ({scope})</h2>
-      <div className="filter-row">
+      <div className="filter-row compact">
         <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search concept" />
-        <select value={relationFilter} onChange={(event) => setRelationFilter(event.target.value)}><option value="all">All relations</option>{relationTypes.map((rt) => <option key={rt} value={rt}>{rt}</option>)}</select>
-        <select value={importanceFilter} onChange={(event) => setImportanceFilter(event.target.value as 'all' | 'core')}><option value="all">All importance</option><option value="core">Core only</option></select>
-        <select value={cardTypeFilter} onChange={(event) => setCardTypeFilter(event.target.value)}><option value="all">All card types</option>{['event', 'person', 'concept', 'institution', 'text', 'place'].map((t) => <option key={t} value={t}>{t}</option>)}</select>
-        <div className="segmented compact">
-          <button onClick={() => setHopLevel(1)} className={hopLevel === 1 ? 'active' : ''}>1-hop</button>
-          <button onClick={() => setHopLevel(2)} className={hopLevel === 2 ? 'active' : ''}>2-hop</button>
-        </div>
+        <details className="filters-sheet">
+          <summary>Filters</summary>
+          <div className="filters-sheet-grid">
+            <select value={relationFilter} onChange={(event) => setRelationFilter(event.target.value)}><option value="all">All relations</option>{relationTypes.map((rt) => <option key={rt} value={rt}>{rt}</option>)}</select>
+            <select value={importanceFilter} onChange={(event) => setImportanceFilter(event.target.value as 'all' | 'core')}><option value="all">All importance</option><option value="core">Core only</option></select>
+            <select value={cardTypeFilter} onChange={(event) => setCardTypeFilter(event.target.value)}><option value="all">All card types</option>{['event', 'person', 'concept', 'institution', 'text', 'place'].map((t) => <option key={t} value={t}>{t}</option>)}</select>
+            <div className="segmented compact">
+              <button onClick={() => setHopLevel(1)} className={hopLevel === 1 ? 'active' : ''}>1-hop</button>
+              <button onClick={() => setHopLevel(2)} className={hopLevel === 2 ? 'active' : ''}>2-hop</button>
+            </div>
+          </div>
+        </details>
+      </div>
+      <div className="mobile-pane-toggle segmented compact">
+        <button onClick={() => setMobilePane('graph')} className={mobilePane === 'graph' ? 'active' : ''}>Graph</button>
+        <button onClick={() => setMobilePane('details')} className={mobilePane === 'details' ? 'active' : ''}>Details</button>
       </div>
       {search && <div className="actions small">{filteredCards.filter((card) => card.title.toLowerCase().includes(search.toLowerCase())).slice(0, 8).map((card) => <button className="ghost" key={card.id} onClick={() => setSelectedCardId(card.id)}>{card.title}</button>)}</div>}
       <div className="all-mode-layout">
-        <div>
+        <div className={mobilePane === 'graph' ? '' : 'mobile-hidden'}>
           <svg viewBox="0 0 400 400" className="graph-svg compact">
             {filteredEdges.map((edge) => {
               const from = pointByCardId.get(edge.from)
@@ -94,7 +104,7 @@ export const AllModePanel = ({ graph, cards, edges, scope, selectedUnitId }: All
             })}
           </svg>
         </div>
-        <article className="details-panel">
+        <article className={`details-panel ${mobilePane === 'details' ? '' : 'mobile-hidden'}`}>
           {!selected ? <p>No card selected.</p> : <>
             <h3>{selected.title}</h3>
             <p><strong>Unit:</strong> {graph.units?.find((u) => u.id === selected.unitId)?.title ?? selected.unitId}</p>
