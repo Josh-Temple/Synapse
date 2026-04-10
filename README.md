@@ -15,6 +15,11 @@ Learn mode remains the center of gravity; graph visuals support retrieval practi
 - Added backward-compatible normalization for legacy graphs without units.
 - Added lightweight due scheduling (`nextDueAt`) with simple local rules.
 - Expanded sample graph to **Age of Revolutions** with 4 units and cross-unit bridges.
+- Redesigned the study UI to be calmer and mobile-first:
+  - reduced stacked-card framing in Learn mode
+  - moved graph editing into a dedicated edit surface
+  - introduced clearer button hierarchy (primary vs tertiary/ghost actions)
+  - replaced noisy top controls with compact mode + overflow actions
 
 ## Scope behavior
 
