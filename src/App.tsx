@@ -50,6 +50,7 @@ function App() {
   const [fullImportMode, setFullImportMode] = useState<'merge' | 'replace'>('merge')
   const [isHelpOpen, setIsHelpOpen] = useState(false)
   const [scope, setScope] = useState<StudyScope>('unit')
+  const [surface, setSurface] = useState<'study' | 'edit'>('study')
 
   const selectedGraph = useMemo(() => appData.graphs.find((graph) => graph.id === selectedGraphId) ?? null, [appData.graphs, selectedGraphId])
 
@@ -60,6 +61,7 @@ function App() {
 
   const setGraphAndPersist = (graphId: string) => {
     setSelectedGraphId(graphId)
+    setSurface('study')
     saveLastGraphId(graphId)
   }
 
@@ -256,6 +258,7 @@ function App() {
         onChangeUnit={(unitId) => persistLearn({ ...learn, selectedUnitId: unitId, selectedBridgeUnitIds: getBridgeNeighborUnitIds(graph, unitId) })}
         onGoHome={() => setSelectedGraphId(null)}
         onToggleMode={() => setMode((current) => current === 'all' ? 'learn' : 'all')}
+        onOpenEdit={() => setSurface('edit')}
         onRandomStart={() => persistLearn(migrateLearnState(graph, null))}
         onResumeLastCard={() => {
           const last = loadLearnState()
@@ -267,87 +270,95 @@ function App() {
         }}
       />
 
-      {mode === 'all' ? (
-        <AllModePanel graph={graph} cards={visibleCards} edges={visibleEdges} scope={scope} selectedUnitId={learn.selectedUnitId} />
+      {surface === 'study' ? (
+        mode === 'all' ? (
+          <AllModePanel graph={graph} cards={visibleCards} edges={visibleEdges} scope={scope} selectedUnitId={learn.selectedUnitId} />
+        ) : (
+          <LearnModePanel
+            cards={graph.cards}
+            outgoingEdges={reviewEdges}
+            learnState={{ ...learn, studyScope: scope }}
+            units={graph.units ?? []}
+            onRevealAllDestinations={() => revealAll('dest')}
+            onRevealAllReasons={() => revealAll('reason')}
+            onToggleDestinationReveal={(edgeId) => persistLearn({ ...learn, revealedDestinationEdgeIds: toggleIdInList(learn.revealedDestinationEdgeIds, edgeId) })}
+            onToggleReasonReveal={(edgeId) => persistLearn({ ...learn, revealedReasonEdgeIds: toggleIdInList(learn.revealedReasonEdgeIds, edgeId) })}
+            onMarkResult={markResult}
+            onFollowEdge={(edge) => setCurrentCard(edge.to)}
+            onSwitchToBridge={() => { setScope('bridge'); persistLearn({ ...learn, studyScope: 'bridge' }) }}
+            onNextCardSameUnit={() => {
+              const sameUnitCards = graph.cards.filter((card) => card.unitId === learn.selectedUnitId)
+              const candidate = sameUnitCards.find((card) => card.id !== learn.currentCardId)
+              if (candidate) setCurrentCard(candidate.id)
+            }}
+            onRandomCardSameScope={() => {
+              const cards = visibleCardsForScope(graph, scope, learn.selectedUnitId, bridgeUnits)
+              if (cards[0]) setCurrentCard(cards[Math.floor(Math.random() * cards.length)].id)
+            }}
+          />
+        )
       ) : (
-        <LearnModePanel
-          cards={graph.cards}
-          outgoingEdges={reviewEdges}
-          learnState={{ ...learn, studyScope: scope }}
-          units={graph.units ?? []}
-          onRevealAllDestinations={() => revealAll('dest')}
-          onRevealAllReasons={() => revealAll('reason')}
-          onToggleDestinationReveal={(edgeId) => persistLearn({ ...learn, revealedDestinationEdgeIds: toggleIdInList(learn.revealedDestinationEdgeIds, edgeId) })}
-          onToggleReasonReveal={(edgeId) => persistLearn({ ...learn, revealedReasonEdgeIds: toggleIdInList(learn.revealedReasonEdgeIds, edgeId) })}
-          onMarkResult={markResult}
-          onFollowEdge={(edge) => setCurrentCard(edge.to)}
-          onSwitchToBridge={() => { setScope('bridge'); persistLearn({ ...learn, studyScope: 'bridge' }) }}
-          onNextCardSameUnit={() => {
-            const sameUnitCards = graph.cards.filter((card) => card.unitId === learn.selectedUnitId)
-            const candidate = sameUnitCards.find((card) => card.id !== learn.currentCardId)
-            if (candidate) setCurrentCard(candidate.id)
-          }}
-          onRandomCardSameScope={() => {
-            const cards = visibleCardsForScope(graph, scope, learn.selectedUnitId, bridgeUnits)
-            if (cards[0]) setCurrentCard(cards[Math.floor(Math.random() * cards.length)].id)
-          }}
-        />
+        <section className="edit-surface">
+          <div className="section-title-row">
+            <h2>Edit graph</h2>
+            <button className="ghost" onClick={() => setSurface('study')}>Back to study</button>
+          </div>
+          <EditPanel
+            graph={graph}
+            onUpdateGraphField={(field, value) => updateGraph(graph.id, (target) => ({ ...target, [field]: value }))}
+            onUpdateCard={(cardId, field, value) => updateGraph(graph.id, (target) => ({
+              ...target,
+              cards: target.cards.map((card) => {
+                if (card.id !== cardId) return card
+                if (field === 'aliases') return { ...card, aliases: value.split(',').map((item) => item.trim()).filter(Boolean) }
+                if (field === 'cardType') return { ...card, cardType: (value || undefined) as typeof card.cardType }
+                if (field === 'dateLabel') return { ...card, dateLabel: value || undefined }
+                return { ...card, [field]: value }
+              }),
+            }))}
+            onUpdateEdge={(edgeId, field, value) => updateGraph(graph.id, (target) => ({
+              ...target,
+              edges: target.edges.map((edge) => {
+                if (edge.id !== edgeId) return edge
+                if (field === 'relationType') return { ...edge, relationType: value.trim() === '' ? undefined : value }
+                if (field === 'importance') return { ...edge, importance: value as 'core' | 'secondary' }
+                return { ...edge, [field]: value }
+              }),
+            }))}
+            onCreateUnit={(input) => {
+              const result = createUnitInGraph(graph, input)
+              if (result.error) return result.error
+              updateGraph(graph.id, () => result.graph)
+              return null
+            }}
+            onDeleteUnit={(unitId) => {
+              const result = deleteUnitInGraph(graph, unitId)
+              if (!result.error) updateGraph(graph.id, () => result.graph)
+              return result.error ?? null
+            }}
+            onCreateCard={(input) => {
+              const result = createCardInGraph(graph, { ...input, cardType: input.cardType as 'event' | 'person' | 'concept' | 'institution' | 'text' | 'place' | undefined })
+              if (result.error) return result.error
+              updateGraph(graph.id, () => result.graph)
+              return null
+            }}
+            onDeleteCard={(cardId) => updateGraph(graph.id, () => deleteCardInGraph(graph, cardId).graph)}
+            onCreateEdge={(input) => {
+              const result = createEdgeInGraph(graph, input)
+              if (result.error) return result.error
+              updateGraph(graph.id, () => result.graph)
+              return null
+            }}
+            onDeleteEdge={(edgeId) => updateGraph(graph.id, () => deleteEdgeInGraph(graph, edgeId).graph)}
+            onRewireEdge={(edgeId, from, to) => {
+              const result = rewireEdgeInGraph(graph, edgeId, from, to)
+              if (result.error) return result.error
+              updateGraph(graph.id, () => result.graph)
+              return null
+            }}
+          />
+        </section>
       )}
-
-      <EditPanel
-        graph={graph}
-        onUpdateGraphField={(field, value) => updateGraph(graph.id, (target) => ({ ...target, [field]: value }))}
-        onUpdateCard={(cardId, field, value) => updateGraph(graph.id, (target) => ({
-          ...target,
-          cards: target.cards.map((card) => {
-            if (card.id !== cardId) return card
-            if (field === 'aliases') return { ...card, aliases: value.split(',').map((item) => item.trim()).filter(Boolean) }
-            if (field === 'cardType') return { ...card, cardType: (value || undefined) as typeof card.cardType }
-            if (field === 'dateLabel') return { ...card, dateLabel: value || undefined }
-            return { ...card, [field]: value }
-          }),
-        }))}
-        onUpdateEdge={(edgeId, field, value) => updateGraph(graph.id, (target) => ({
-          ...target,
-          edges: target.edges.map((edge) => {
-            if (edge.id !== edgeId) return edge
-            if (field === 'relationType') return { ...edge, relationType: value.trim() === '' ? undefined : value }
-            if (field === 'importance') return { ...edge, importance: value as 'core' | 'secondary' }
-            return { ...edge, [field]: value }
-          }),
-        }))}
-        onCreateUnit={(input) => {
-          const result = createUnitInGraph(graph, input)
-          if (result.error) return result.error
-          updateGraph(graph.id, () => result.graph)
-          return null
-        }}
-        onDeleteUnit={(unitId) => {
-          const result = deleteUnitInGraph(graph, unitId)
-          if (!result.error) updateGraph(graph.id, () => result.graph)
-          return result.error ?? null
-        }}
-        onCreateCard={(input) => {
-          const result = createCardInGraph(graph, { ...input, cardType: input.cardType as 'event' | 'person' | 'concept' | 'institution' | 'text' | 'place' | undefined })
-          if (result.error) return result.error
-          updateGraph(graph.id, () => result.graph)
-          return null
-        }}
-        onDeleteCard={(cardId) => updateGraph(graph.id, () => deleteCardInGraph(graph, cardId).graph)}
-        onCreateEdge={(input) => {
-          const result = createEdgeInGraph(graph, input)
-          if (result.error) return result.error
-          updateGraph(graph.id, () => result.graph)
-          return null
-        }}
-        onDeleteEdge={(edgeId) => updateGraph(graph.id, () => deleteEdgeInGraph(graph, edgeId).graph)}
-        onRewireEdge={(edgeId, from, to) => {
-          const result = rewireEdgeInGraph(graph, edgeId, from, to)
-          if (result.error) return result.error
-          updateGraph(graph.id, () => result.graph)
-          return null
-        }}
-      />
     </main>
   )
 }

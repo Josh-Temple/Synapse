@@ -1,5 +1,16 @@
 # Handoff Notes
 
+## Session update (UI redesign pass)
+
+- Reworked the primary app surface into a calmer study-first layout with stronger typography and spacing rhythm.
+- Added a minimal top bar with compact mode visibility and overflow menu for tertiary actions (home/random/resume/edit).
+- Implemented explicit study/edit separation: edit controls now live on a dedicated edit surface and are no longer always visible during study.
+- Simplified Learn mode visual hierarchy:
+  - current concept is now the dominant focal element
+  - recall rows use lightweight dividers instead of mini dashboards/cards
+  - reveal/meta actions are tertiary (ghost) while remembered/missed/next remain direct action controls
+- Reduced visual container intensity in All mode and aligned filters/controls to the same minimal language.
+
 ## Session summary
 
 This pass upgraded Synapse from single-axis study behavior to a **two-axis model**:

@@ -35,32 +35,34 @@ export const LearnModePanel = ({
   const currentUnit = units.find((unit) => unit.id === learnState.selectedUnitId)
 
   return (
-    <section className="learn-layout">
-      <article className="card learn-focus">
-        <p className="eyebrow">Learn mode / {learnState.studyScope}</p>
-        <h2>{currentCard?.title ?? 'No current card'}</h2>
-        <p className="muted">Unit: {currentUnit?.title ?? '—'} · Type: {currentCard?.cardType ?? '—'} {currentCard?.dateLabel ? `· ${currentCard.dateLabel}` : ''} · In-scope links: {outgoingEdges.length}</p>
+    <section className="learn-surface">
+      <article className="concept-focus">
+        <p className="eyebrow">Current concept</p>
+        <h2 className="concept-title">{currentCard?.title ?? 'No current card'}</h2>
+        <p className="muted">{currentCard?.cardType ?? '—'} {currentCard?.dateLabel ? `· ${currentCard.dateLabel}` : ''} · {currentUnit?.title ?? '—'} · {outgoingEdges.length} links</p>
       </article>
 
-      <article className="card">
-        <div className="learn-header">
+      <section>
+        <div className="section-title-row">
           <h3>Recall connections</h3>
-          <div className="actions">
-            <button onClick={onRevealAllDestinations}>Reveal all destinations</button>
-            <button onClick={onRevealAllReasons}>Reveal all reasons</button>
-            <button onClick={onNextCardSameUnit}>Next card (same unit)</button>
-            <button onClick={onRandomCardSameScope}>Random card (same scope)</button>
-            {learnState.studyScope !== 'bridge' ? <button onClick={onSwitchToBridge}>Switch to bridge for this card</button> : null}
+          <div className="actions small tertiary-actions">
+            <button className="ghost" onClick={onRevealAllDestinations}>Reveal all destinations</button>
+            <button className="ghost" onClick={onRevealAllReasons}>Reveal all reasons</button>
+            <button className="ghost" onClick={onRandomCardSameScope}>Random in scope</button>
+            {learnState.studyScope !== 'bridge' ? <button className="ghost" onClick={onSwitchToBridge}>Switch to bridge</button> : null}
           </div>
         </div>
 
         {outgoingEdges.length === 0 ? (
-          <div>
+          <div className="empty-state">
             <p>No outgoing links in this scope.</p>
-            <div className="actions"><button onClick={onNextCardSameUnit}>Next card in unit</button><button onClick={onRandomCardSameScope}>Random card in scope</button><button onClick={onSwitchToBridge}>Switch to bridge</button></div>
+            <div className="actions">
+              <button onClick={onNextCardSameUnit}>Next</button>
+              <button className="ghost" onClick={onRandomCardSameScope}>Random</button>
+            </div>
           </div>
         ) : (
-          <ul className="edge-list">
+          <ul className="recall-list">
             {outgoingEdges.map((edge) => {
               const destination = cards.find((card) => card.id === edge.to)
               const isDestRevealed = learnState.revealedDestinationEdgeIds.includes(edge.id)
@@ -68,29 +70,28 @@ export const LearnModePanel = ({
               const destinationUnit = units.find((unit) => unit.id === destination?.unitId)
 
               return (
-                <li key={edge.id} className="edge-item review-item">
-                  <div className="review-topline">
-                    <strong>{edge.slot}</strong>
-                    <span className="cue">cue: {edge.cue}</span>
-                    <span className="relation-type">{edge.relationType ?? '—'} · {edge.importance ?? 'secondary'}</span>
-                  </div>
-                  <div>destination: {isDestRevealed ? destination?.title ?? '(missing)' : '•••• hidden ••••'} {isDestRevealed && learnState.studyScope === 'bridge' ? `(${destinationUnit?.title ?? destination?.unitId})` : ''}</div>
-                  <div>reason: {isReasonRevealed ? edge.reason : '•••• hidden ••••'}</div>
+                <li key={edge.id} className="recall-item">
+                  <p className="muted slot-row">{edge.slot} · {edge.relationType ?? 'relation'} · {edge.importance ?? 'secondary'}</p>
+                  <p><span className="muted">cue:</span> {edge.cue}</p>
+                  <p><span className="muted">destination:</span> {isDestRevealed ? destination?.title ?? '(missing)' : 'hidden'} {isDestRevealed && learnState.studyScope === 'bridge' ? `(${destinationUnit?.title ?? destination?.unitId})` : ''}</p>
+                  <p><span className="muted">reason:</span> {isReasonRevealed ? edge.reason : 'hidden'}</p>
+
                   <div className="actions small">
-                    <button onClick={() => onToggleDestinationReveal(edge.id)}>{isDestRevealed ? 'Hide destination' : 'Reveal destination'}</button>
-                    <button onClick={() => onToggleReasonReveal(edge.id)}>{isReasonRevealed ? 'Hide reason' : 'Reveal reason'}</button>
+                    <button className="ghost" onClick={() => onToggleDestinationReveal(edge.id)}>{isDestRevealed ? 'Hide destination' : 'Reveal destination'}</button>
+                    <button className="ghost" onClick={() => onToggleReasonReveal(edge.id)}>{isReasonRevealed ? 'Hide reason' : 'Reveal reason'}</button>
                   </div>
-                  <div className="actions small review-actions">
+
+                  <div className="actions action-row-primary">
                     <button className="success" onClick={() => onMarkResult(edge.id, 'remembered')}>Remembered</button>
                     <button className="danger" onClick={() => onMarkResult(edge.id, 'missed')}>Missed</button>
-                    <button onClick={() => onFollowEdge(edge)}>Follow next card</button>
+                    <button onClick={() => onFollowEdge(edge)}>Next</button>
                   </div>
                 </li>
               )
             })}
           </ul>
         )}
-      </article>
+      </section>
     </section>
   )
 }
