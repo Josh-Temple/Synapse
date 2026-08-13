@@ -1,6 +1,7 @@
 # Synapse MVP
 
 Synapse is a local-first history/concept learning app for **relationship recall**.
+- Production: https://synapse-one-rho.vercel.app/
 
 The app keeps two axes active at all times:
 - **Mode axis**: `all` / `learn`
